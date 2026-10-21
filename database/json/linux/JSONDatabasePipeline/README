@@ -1,0 +1,88 @@
+# Comprehensive Reference Guide: The `JsonPipeline` Class
+
+The `JsonPipeline` class serves as a structural abstraction layer and **Object-Relational Mapper (ORM) for JSON**. By decoupling application logic from underlying file storage, it empowers systems to navigate complex, nested data structures safely without tight coupling to physical file layouts.
+
+---
+
+## 1. Core Architecture & Initialization
+
+```python
+class JsonPipeline:
+    def __init__(
+        self,
+        data: dict[str, Any] | list[Any] | None = None,
+        file_path: str | None = None,
+    ) -> None:
+```
+
+* **`data`**: Volatile memory buffer acting as a high-speed read/write data snapshot (`self.data`).
+* **`current_path`**: Reference path string enabling targeted `save()` calls without repeated path arguments.
+
+### Factory Constructors
+* **`JsonPipeline.create(initial_state=None, file_path=None)`**: Initializes a fresh pipeline in memory for "Write-First" workflows, mapping an optional destination path so the instance is born with a target.
+* **`JsonPipeline.from_file(file_path)`**: Smart filesystem ingestion engine. If a file is missing, it triggers an interactive consent protocol to authorize a fresh instantiation; if valid, it reads the JSON asset using `utf-8` encoding with built-in corruption shielding via `JSONDecodeError` recovery.
+
+---
+
+## 2. Internal Mechanics & Heuristic Engines
+
+The pipeline utilizes several low-level processing engines to manage data topology:
+
+* **`_clean_data(obj)`**: Implements a depth-first traversal "Heuristic Firewall" to recursively strip out internal documentation keys prefixed with `//_`, separating human-readable metadata from machine-ready data.
+* **`_sanitize(path)`**: Tokenizes raw string paths into clean navigational arrays while normalizing bracket-notation (e.g., transforming `key[0]` into `key.0`) to unify dictionary and list traversal logic.
+* **`_trace(data, current_path)`**: Unrolls nested structures into flat `(Path, Value)` tuples. It features **Identity Promotion**, replacing volatile numeric list indices with persistent signature keys like `name` or `id` when available.
+
+---
+
+## 3. Data Retrieval & Query API (`get_data`)
+
+The `get_data(path)` method safely fetches deeply nested attributes using a tokenized navigation loop that completely avoids recursion-depth errors.
+
+```python
+def get_data(self, path: str) -> Any | None:
+```
+
+### Supported Traversal Features
+* **Null-Pointer Protection**: Fails fast if parent nodes evaluate to `None`, protecting against `NoneType` subscripting.
+* **Predicate-Based Searching**: Isolates specific objects in a list dynamically via syntax like `SERIES[name=Oshi No Ko]`, evaluating keys and target values sequentially with $O(n)$ efficiency.
+* **Bounds-Checked Indexing**: Safely parses numeric tokens against sequence lengths to prevent `IndexError` exceptions.
+* **Zero-Crash Design**: Captures structural exceptions (`IndexError`, `TypeError`, `ValueError`) and safely returns `None` instead of breaking application flow.
+
+---
+
+## 4. State Mutation & Ingestion Methods
+
+* **`set_data(path, value, auto_create=True)`**: Implements pointer-like mutation with "Smart Schema Expansion" (analogous to `mkdir -p`). It looks ahead at token types to automatically initialize missing dictionaries or padded lists on the fly.
+* **`ingest_schema(inputs, custom_key, schema=None)`**: Multimodal ingestion engine mapping raw pre-validated dictionaries into the data structure. If a recursive transformation blueprint (`schema`) is provided, it restructures the fields accordingly; otherwise, it performs a direct pass-through injection. It also supports dynamic template formatting (e.g., `series.{title}`) for automated filename and key sanitization.
+* **`append_data(path, new_entry, unique=False, auto_create=True)`**: Performs atomic appends to memory-mapped lists. Includes a `unique` flag for membership validation to prevent redundant archival records.
+
+---
+
+## 5. Diagnostic Inspection & CLI Rendering (`print_path`)
+
+The pipeline features a multi-modal CLI diagnostic engine (`print_path`) complete with a **Dynamic Symmetry Engine** for clean visual framing:
+
+* **`view="flat"`**: Unrolls branches into aligned paths and serialized values.
+* **`view="json"`**: Bypasses formatting to output raw, indented JSON schemas for direct external tool export.
+* **`view=dict` (View Contract)**: Transforms collections into structured, aligned tables or high-density vertical blocks with automated column-width calculations, truncation defenses, and fallback options.
+* **`get_keys(path="")`**: Retrieves functional keys at a specified node while automatically filtering out internal `//_` metadata markers.
+
+---
+
+## 6. Persistence & Zero-Loss Archival (`save`)
+
+```python
+def save(
+    file_path: str | None = None,
+    backup: bool = False,
+    max_backups: int = 3,
+) -> bool:
+```
+
+* **Target Resolution**: Prioritizes manual paths or falls back to the instance's persistent `current_path` anchor.
+* **Rolling Rotation Backup**: If enabled, recursively rotates legacy snapshots (`.bak1` through `.bakN`) downward using `shutil.copy2` to preserve filesystem metadata before writing new data.
+* **Safe Serialization**: Commits volatile memory maps back to physical storage using strict `utf-8` formatting and structured indentation to ensure version control friendliness and auditability.
+
+---
+
+> **Note on Safety:** Throughout all input, mutation, and serialization routines, the pipeline leverages centralized status reporting (`report_status`) to log warnings regarding missing assets, path breaches, or type conflicts without triggering fatal runtime application crashes.

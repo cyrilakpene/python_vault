@@ -1,0 +1,124 @@
+# Comprehensive Reference Guide: The `invoke_with_dynamic_args()` Engine
+
+The `invoke_with_dynamic_args` module provides a reflection-based execution engine that automatically inspects Python function signatures, generates compatible interactive user input schemas, validates input constraints, and invokes target callables with parsed arguments.
+
+---
+
+## 1. Core Functions & Signatures
+
+### `_resolve_cast_type()`
+```python
+def _resolve_cast_type(annotation: Any) -> str:
+```
+* **`annotation`**: The raw Python type signature or parameter metadata annotation to parse.
+* **Returns**: A string identifier declaring the designated type casting strategy pattern (e.g., `"str"`, `"list_int"`, `"bool"`).
+
+### `build_descriptive_label()`
+```python
+def build_descriptive_label(
+    param_name: str,
+    cast_type: str,
+    default: Any,
+    hint: str | None = None,
+) -> str:
+```
+* **`param_name`**: Target string key defining the configuration parameter variable.
+* **`cast_type`**: String identifier declaring the type casting strategy pattern.
+* **`default`**: Pre-assigned fallback value or `inspect.Parameter.empty` marker.
+* **`hint`**: Optional domain-specific usage guidance appended to the generated label.
+
+### `invoke_with_dynamic_args()`
+```python
+def invoke_with_dynamic_args(
+    target_func: Callable[..., Any],
+    skip_args: tuple[str, ...] = ("self", "file_path"),
+    override_defaults: dict[str, Any] | None = None,
+    critical: bool = False,
+    schema_overrides: dict[str, dict[str, Any]] | None = None,
+    kwargs_transformer: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+) -> Any:
+```
+* **`target_func`**: The callable target reference to evaluate and execute.
+* **`skip_args`**: A tuple of argument string names to exclude from dynamic user prompts.
+* **`override_defaults`**: Dictionary specifying hard-coded parameter override values.
+* **`critical`**: Boolean indicating if user input failures should halt system threads.
+* **`schema_overrides`**: Optional per-parameter schema fields merged into generated schemas.
+* **`kwargs_transformer`**: Optional reusable hook applied to resolved arguments before invocation.
+
+---
+
+## 2. Type Mapping & Descriptor Matrix
+
+The internal resolver maps Python type annotations and container origins to specific validation strategies and human-readable prompt descriptors:
+
+| Python Annotation Pattern | Resolved Cast Type | Prompt Descriptor / Expected Format |
+| :--- | :--- | :--- |
+| `inspect.Parameter.empty` / `str` | `"str"` | `"Text"` |
+| `Union[list[int], ...]` / `tuple[int, ...]` | `"tuple_int"` / `"list_int"` | `"Single int or start, end range (e.g., 0, 20)"` |
+| `list[str]` / `tuple[str]` | `"list_str"` | `"Comma-separated text (or leave blank for all)"` |
+| `bool` | `"bool"` | `"y/n"` |
+| `int` / `float` | `"int"` / `"float"` | `"Numeric int"` / `"Numeric float"` |
+| `Literal[...]` / `Enum` | *Dynamic choices* | Interactive choice selection mode (`input="select"`) |
+
+---
+
+## 3. Execution Pipeline & Architectural Flow
+
+1. **Signature Introspection**: 
+   * Extracts function signatures and filters out excluded parameters (`skip_args`, `override_defaults`, and variable args like `*args` or `**kwargs`).
+2. **Type Resolution (`_resolve_cast_type`)**: 
+   * Decomposes `Union` containers, prioritizing iterables over scalars to prevent structural truncation, and maps types to target validation keys.
+3. **Descriptor Synthesis (`build_descriptive_label`)**: 
+   * Formats clean title-cased names, appends expected format descriptions, and attaches active default value metadata indicators if present.
+4. **Input Mode Evaluation**: 
+   * Detects `Literal` boundaries, `Enum` subclasses, or choice properties to configure selection fields (`"select"`) versus default text inputs.
+5. **Interactive Ingress & Execution**: 
+   * Dispatches the dynamically compiled schema to `user_input()`, merges overrides and transforms, and executes `target_func` with the resolved keyword arguments.
+
+---
+
+## 4. Practical Code Examples
+
+### Dynamic Invocation of a Standard Function
+```python
+from interface.invoke_with_dynamic_args import invoke_with_dynamic_args
+
+def deploy_service(service_name: str, port: int = 8080, verbose: bool = False):
+    print(f"Deploying {service_name} on port {port} (Verbose: {verbose})")
+    return "DEPLOYED"
+
+# Automatically prompts the user for service_name, port, and verbose based on type hints
+result = invoke_with_dynamic_args(deploy_service)
+```
+
+### Using Overrides and Argument Transformers
+```python
+from interface.invoke_with_dynamic_args import invoke_with_dynamic_args
+
+def fetch_records(limit: int, query: str):
+    return f"Fetching {limit} records for query: {query}"
+
+# Pre-specify overrides and transform kwargs before calling the function
+result = invoke_with_dynamic_args(
+    target_func=fetch_records,
+    override_defaults={"limit": 50},
+    kwargs_transformer=lambda kw: {**kw, "query": kw["query"].strip().upper()}
+)
+```
+
+### Handling Literals and Enums
+```python
+from enum import Enum
+from typing import Literal
+from interface.invoke_with_dynamic_args import invoke_with_dynamic_args
+
+class Environment(Enum):
+    DEV = "development"
+    PROD = "production"
+
+def configure_cluster(env: Environment, tier: Literal["standard", "enterprise"]):
+    print(f"Configuring {tier} tier in {env.value} environment.")
+
+# Automatically switches input mode to select choices for Enum and Literal parameters
+invoke_with_dynamic_args(configure_cluster)
+```
