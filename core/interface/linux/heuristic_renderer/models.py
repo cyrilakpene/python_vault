@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 
 # DATA MODEL ENGINE: MENU ENTRY & ROW MAPPING COMPOSITOR
@@ -128,6 +128,39 @@ class Schema:
             "metadata": self.metadata.to_dict(),
             "sections": [s.to_dict() for s in self.sections],
         }
+
+
+# TRANSIENT 2D OVERLAY CONFIGURATION SCHEME
+# Defines default layout bounds, prompt positioning, and lifecycle execution flags
+# for the transient overlay rendering engine.
+@dataclass
+class OverlayConfig:
+    """Configuration settings for transient 2D overlay rendering.
+
+    Attributes:
+        prompt: Custom footer prompt displayed at the bottom of the overlay frame.
+        align_prompt: Layout alignment for the footer prompt within the frame bounds ("center", "left", "right").
+        width: Virtual terminal column width.
+        height: Virtual terminal row height, or 'auto' to auto-calculate required space.
+        padding_x: Developer layout parameter for horizontal padding around content.
+        padding_y: Developer layout parameter for vertical padding around content.
+        timer: Duration in seconds before auto-clearing (optional).
+        auto_clear: If True, wipes the spatial bounds of the overlay upon exit.
+    """
+
+    # PROMPT AND FOOTER LAYOUT ATTRIBUTES
+    prompt: str = "Press [ENTER] to wipe display..."
+    align_prompt: Literal["center", "left", "right"] = "center"
+
+    # SPATIAL CANVAS AND PADDING PARAMETERS
+    width: int = 80
+    height: int | str = "auto"
+    padding_x: int = 1
+    padding_y: int = 1
+
+    # LIFECYCLE AND TIMED CLEARING CONTROLS
+    timer: int | None = None
+    auto_clear: bool = True
 
 
 # EXECUTION DISPATCH ENGINE: ABSOLUTE GRID RENDER WRAPPER

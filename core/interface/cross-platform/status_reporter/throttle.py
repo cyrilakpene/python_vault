@@ -14,7 +14,7 @@ def evaluate_throttle(
     Evaluates step-based modulo intervals and time-delta elapsed durations to filter recurring events.
 
     Args:
-        state: Current execution state string (e.g., 'running', 'done', 'fail').
+        state: Current execution state string (e.g., 'task', 'done', 'fail').
         message: Unique identifier or message string used for temporal cache tracking.
         is_loop: Throttling threshold (boolean, interval integer, or time-delta float).
         step: Optional discrete step counter for modulo-based frequency throttling.
@@ -67,7 +67,7 @@ def cleanup_cache(state: str, message: str) -> None:
     Removes terminal state messages from cache to prevent memory growth.
 
     Args:
-        state: Current execution state string (e.g., 'running', 'done', 'fail').
+        state: Current execution state string (e.g., 'task', 'done', 'fail').
         message: Unique message key corresponding to the entry stored in the global cache.
     """
     # STATE NORMALIZATION

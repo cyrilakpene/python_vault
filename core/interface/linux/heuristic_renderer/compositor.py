@@ -1,4 +1,4 @@
-from .constants import border_styles
+from .constants import border_styles  # type: ignore[import-not-found]
 
 
 # 2D RASTERIZATION & ABSOLUTE TEXT PLACEMENT ENGINE

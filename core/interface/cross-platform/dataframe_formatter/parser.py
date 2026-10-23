@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence, TypeAlias, cast
 
-from .constants import report_status  # type: ignore[import-not-found]
-from .constants import log_path  # type: ignore[import-not-found]
+from .constants import report_status, log_path  # type: ignore[import-not-found]
 
 if TYPE_CHECKING:
     import pandas as pd  # type: ignore[import-not-found, import-untyped]

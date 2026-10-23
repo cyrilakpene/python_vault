@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Literal, Mapping, Sequence, Typ
 from .alignment import compute_widths_and_alignments  # type: ignore[import-not-found]
 from .parser import parse_tabular_data  # type: ignore[import-not-found]
 from .renderer import render_table  # type: ignore[import-not-found]
-from .constants import report_status  # type: ignore[import-not-found]
-from .constants import log_path  # type: ignore[import-not-found]
+from .constants import report_status, log_path  # type: ignore[import-not-found]
 
 if TYPE_CHECKING:
     import pandas as pd  # type: ignore[import-not-found, import-untyped]
