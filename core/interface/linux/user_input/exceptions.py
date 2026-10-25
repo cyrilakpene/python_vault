@@ -1,7 +1,7 @@
 # SYSTEM INTERRUPTION EXCEPTION CLASS
 # Custom exception domain class used to signal explicit user cancellations or interactive abort requests (e.g., SIGINT / Ctrl+C).
 # Standardizes cancellation formatting across CLI workflows to enable graceful process termination without stack traces.
-class UserCancelError(Exception):
+class UserCancelError(BaseException):
     """Raised when user cancels operation."""
 
     def __init__(self, message: str = "User interrupted process (Ctrl+C)."):
