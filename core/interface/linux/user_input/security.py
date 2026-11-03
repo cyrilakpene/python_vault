@@ -4,7 +4,7 @@ import hmac
 import re
 from typing import Callable
 
-from .exceptions import MaxRetriesExceededError
+from .exceptions import MaxRetriesExceededError  # type: ignore[import-not-found]
 
 # OWASP SECURITY BENCHMARK CONFIGURATION
 # Defines global cryptographic parameter standards. The standard iteration count for PBKDF2-HMAC-SHA256
