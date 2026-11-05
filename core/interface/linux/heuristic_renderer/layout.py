@@ -168,8 +168,9 @@ def resolve_entries(
 
         # TEMPLATE FORMATTING & LINE APPEND
         # Applies the target format string template to combine key, label, and polled value data.
+        active_template = template
         rendered_entries.append(
-            template.format(key=key, label=entry.get("label", ""), val=val)
+            active_template.format(key=key, label=entry.get("label", ""), val=val)
         )
 
     return rendered_entries

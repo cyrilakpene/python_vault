@@ -4,8 +4,8 @@ from typing import Any, Callable, cast
 from .helpers import register_arg  # type: ignore[import-not-found]
 from .subcommand import subcommand_runner  # type: ignore[import-not-found]
 from .executor import handle_root_execution  # type: ignore[import-not-found]
-from .constants import report_status, log_path  # type: ignore[import-not-found]
 from .exceptions import InvalidConfigError  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # DYNAMIC CLI ROUTER & ARGPARSE COMMAND DISPATCH ENGINE
@@ -44,8 +44,14 @@ def create_cli_router(
         report_status(
             state="info",
             message=f"Initializing root parser for binary: {cmd_name!r}",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.cli_router",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli_router",
+                actor=context.get("user"),
+                payload={"binary": cmd_name},
+            ),
         )
         parser = argparse.ArgumentParser(
             prog=cmd_name, description=cast(str, config_dict.get("description", ""))
@@ -57,8 +63,14 @@ def create_cli_router(
             report_status(
                 state="info",
                 message=f"Registering version flag (-v / --version) -> {config['version']}",
-                silent=True,
-                log_path=log_path,
+                context=LogContext(
+                    component="interface.cli_router",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="cli_router",
+                    actor=context.get("user"),
+                    payload={"version": config["version"]},
+                ),
             )
             parser.add_argument(
                 "-v",
@@ -70,8 +82,14 @@ def create_cli_router(
         report_status(
             state="info",
             message=f"Initializing sub-parser for command branch: {cmd_name!r}",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.cli_router",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli_router",
+                actor=context.get("user"),
+                payload={"command_branch": cmd_name},
+            ),
         )
 
     assert parser is not None
@@ -93,8 +111,14 @@ def create_cli_router(
         report_status(
             state="info",
             message=f"Registering positionals for {cmd_name!r}...",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.cli_router",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli_router",
+                actor=context.get("user"),
+                payload={"field_key": name, "command": cmd_name},
+            ),
         )
         register_arg(
             container=parser,
@@ -124,8 +148,14 @@ def create_cli_router(
         report_status(
             state="info",
             message=f"Registering mutually exclusive group #{idx} (required={req}) for {cmd_name!r}...",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.cli_router",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli_router",
+                actor=context.get("user"),
+                payload={"group_index": idx, "required": req, "command": cmd_name},
+            ),
         )
         group = parser.add_mutually_exclusive_group(required=req)
         args_spec = group_config.get("arguments", {})
@@ -150,8 +180,14 @@ def create_cli_router(
         report_status(
             state="info",
             message=f"Registering optional arguments for {cmd_name!r}...",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.cli_router",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli_router",
+                actor=context.get("user"),
+                payload={"argument": name, "command": cmd_name},
+            ),
         )
         register_arg(container=parser, name=name, opts=opts, handlers=handlers)
 
@@ -168,8 +204,14 @@ def create_cli_router(
         report_status(
             state="info",
             message=f"Building subcommands tree for {cmd_name!r}: {list(sub_configs.keys())}",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.cli_router",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli_router",
+                actor=context.get("user"),
+                payload={"command": cmd_name, "subcommands": list(sub_configs.keys())},
+            ),
         )
         subparsers_action = parser.add_subparsers(
             dest="subcommand", required=True, help="Available subcommands"

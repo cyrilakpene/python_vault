@@ -3,6 +3,7 @@ from typing import Any
 
 from .compositor import draw_box, draw_text  # type: ignore[import-not-found]
 from .layout import resolve_layout, resolve_entries  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # HEURISTIC GRID RENDERER & 2D ABSOLUTE CANVAS COMPOSITOR
@@ -37,6 +38,23 @@ def heuristic_grid_renderer(
     Returns:
         str: The consolidated multi-line string representing the fully rendered 2D terminal buffer.
     """
+    report_status(
+        state="info",
+        message="Starting heuristic grid rendering session.",
+        context=LogContext(
+            component="interface.heuristic_renderer",
+            log_path=log_path,
+            silent=True,
+            trace_id="heuristic_grid_renderer",
+            actor=context.get("user"),
+            payload={
+                "width": width,
+                "height": str(height),
+                "sections_count": len(schema.get("sections", [])),
+            },
+        ),
+    )
+
     meta = schema.get("metadata", {})
     sections = schema.get("sections", [])
 
@@ -155,7 +173,22 @@ def heuristic_grid_renderer(
 
     # BUFFER CONSOLIDATION: ATOMIC 2D GRID RENDERING
     # Flattens the 2D character matrix buffer into a single newline-delimited string payload.
-    return "\n".join("".join(row) for row in buffer)
+    rendered_output = "\n".join("".join(row) for row in buffer)
+
+    report_status(
+        state="done",
+        message="Heuristic grid rendering completed successfully.",
+        context=LogContext(
+            component="interface.heuristic_renderer",
+            log_path=log_path,
+            silent=True,
+            trace_id="heuristic_grid_renderer",
+            actor=context.get("user"),
+            payload={"canvas_height": canvas_height, "canvas_width": canvas_width},
+        ),
+    )
+
+    return rendered_output
 
 
 # LINEAR UI COMPOSITOR & MULTI-COLUMN SYNTHESIS ENGINE

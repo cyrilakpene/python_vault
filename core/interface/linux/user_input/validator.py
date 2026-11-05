@@ -1,7 +1,7 @@
 import inspect
 from typing import Any, Callable
 
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # TYPE VALIDATION & WEAVER INITIALIZATION ENGINE
@@ -36,8 +36,18 @@ def initialize_weaver(
     if not isinstance(schema, list):
         report_status(
             state="fail",
-            message="Schema Critical: Inbound schema must be a list of dictionaries.",
-            log_path=log_path,
+            message="Schema Integrity Critical: Expected inbound schema configuration to be a list of dictionaries.",
+            context=LogContext(
+                component="interface.user_input",
+                log_path=log_path,
+                silent=False,
+                trace_id="user_input",
+                actor=context.get("user"),
+                payload={
+                    "schema_type": type(schema).__name__,
+                    "expected_type": "list[dict]",
+                },
+            ),
         )
 
         # SAFE EXIT: To maintain system stability, we return a neutral, empty
@@ -65,8 +75,8 @@ def initialize_weaver(
             # or infinite terminal loops.
             raise ValueError(
                 f"Schema Configuration Error at index {index}: "
-                f"Cast type {cast_type!r} is not registered in type_map. "
-                f"Supported types are: {sorted(supported_type_keys)}",
+                f"Unsupported cast type {cast_type!r}. Registered types include: "
+                f"{sorted(supported_type_keys)}",
             )
 
         # INGESTION MATRIX CHECK: Verify input handler registration
@@ -77,8 +87,8 @@ def initialize_weaver(
             # abort to prevent silent fallback and unintended terminal output leakage.
             raise ValueError(
                 f"Schema Configuration Error at index {index}: "
-                f"Input handler {input_type!r} is not registered in input_map. "
-                f"Supported input handlers are: {sorted(supported_input_keys)}",
+                f"Unrecognized input handler {input_type!r}. Registered handlers include: "
+                f"{sorted(supported_input_keys)}",
             )
 
     # INITIALIZATION MANIFEST RETURN

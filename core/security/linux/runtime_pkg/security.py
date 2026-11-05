@@ -2,8 +2,8 @@ import os
 import pwd
 from typing import Any
 
-from .constants import report_status
-from .identity import validate_group
+from .identity import validate_group  # type: ignore[import-not-found]
+from .constants import report_status, LogContext  # type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: SECURITY CONTEXT AUDIT & PRIVILEGE MANAGEMENT
@@ -32,14 +32,20 @@ def audit_security_context(
     # Reports the start of the security audit task and validates that the human user identity has been resolved.
     report_status(
         state="task",
-        message="IDENTITY PIVOT: ESCAPING PRIVILEGE ESCALATION.",
-        log_path=session_path,
-        silent=True,
+        message="Identity pivot: Escaping privilege escalation.",
+        context=LogContext(
+            component="security.runtimecontext",
+            log_path=session_path,
+            silent=True,
+            trace_id="runtimecontext",
+            actor=human_user,
+            payload={"target_group": target_group},
+        ),
     )
 
     if not human_user:
         raise ValueError(
-            "Human user identity has not been resolved yet. Run resolve_session_path() first."
+            "Human user identity has not been resolved yet."
         )
 
     # PASSWORD DATABASE LOOKUP & USER VERIFICATION
@@ -50,13 +56,20 @@ def audit_security_context(
         report_status(
             state="fail",
             message=f"Security context error: User {human_user!r} does not exist.",
-            log_path=session_path,
+            context=LogContext(
+                component="security.runtimecontext",
+                log_path=session_path,
+                silent=False,
+                trace_id="runtimecontext",
+                actor=human_user,
+                payload={"human_user": human_user},
+            ),
         )
         raise SystemExit(1)
 
     # GROUP VALIDATION & PRIVILEGE CHECK
     # Validates the target POSIX group and checks whether the current process is running with root privileges (EUID 0).
-    target_gid = validate_group(target_group, session_path)
+    target_gid = validate_group(human_user, target_group, session_path)
     is_privileged = os.geteuid() == 0
 
     # HOME DIRECTORY ACCESSIBILITY CHECK
@@ -65,7 +78,14 @@ def audit_security_context(
         report_status(
             state="warn",
             message=f"WARNING: Resolved home {user_info.pw_dir!r} is inaccessible.",
-            log_path=session_path,
+            context=LogContext(
+                component="security.runtimecontext",
+                log_path=session_path,
+                silent=False,
+                trace_id="runtimecontext",
+                actor=human_user,
+                payload={"human_user": human_user, "home_dir": user_info.pw_dir},
+            ),
         )
 
     # DISPLAY CONTEXT ENVIRONMENT GATHERING

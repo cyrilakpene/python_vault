@@ -1,7 +1,7 @@
-from typing import Any
+from typing import Any, cast
 
-from .constants import report_status, log_path  # type: ignore[import-not-found]
 from .exceptions import InvalidConfigError  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # ARGUMENT REGISTRATION & PARSER CONFIGURATION ENGINE
@@ -40,8 +40,14 @@ def register_arg(
         report_status(
             state="info",
             message=f"Handler Bound -> {name!r}",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="cli.helpers",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli",
+                actor=context.get("user"),
+                payload={"argument": name},
+            ),
         )
         handlers[name] = handler
 
@@ -52,8 +58,14 @@ def register_arg(
         report_status(
             state="item",
             message=f"Positional Arg Added {name!r}",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.cli_router",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli_router",
+                actor=context.get("user"),
+                payload={"positional_arg": name},
+            ),
         )
         try:
             container.add_argument(name, **arg_opts)
@@ -69,13 +81,20 @@ def register_arg(
             raise InvalidConfigError(
                 f"'flags' parameter for argument {name!r} must be a list or tuple of flag strings."
             )
+        typed_flags = cast(list[str] | tuple[str, ...], flags)
 
         arg_opts = {k: v for k, v in opts.items() if k not in ("flags", "handler")}
         report_status(
             state="item",
             message=f"Optional Flag Added flags={flags} -> dest={name!r}",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.cli_router",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli_router",
+                actor=context.get("user"),
+                payload={"argument": name, "flags": list(typed_flags)},
+            ),
         )
         try:
             container.add_argument(*flags, dest=name, **arg_opts)

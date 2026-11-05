@@ -1,6 +1,7 @@
 from typing import Any
-from .registry import CONDITION_OPERATORS
-from .path_resolver import resolve_path, inject_path
+
+from .registry import CONDITION_OPERATORS  # type: ignore[import-not-found]
+from .path_resolver import resolve_path, inject_path  # type: ignore[import-not-found]
 
 
 # DATA CONTAINER SUBSYSTEM: RULE CONDITION EVALUATION & LOGICAL GATE ENGINE

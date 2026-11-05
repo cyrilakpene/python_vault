@@ -2,7 +2,7 @@ from typing import Any
 
 from .operators import get_operators  # type: ignore[import-not-found]
 from .extractor import resolve_field_value  # type: ignore[import-not-found]
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # DATA CONTAINER SUBSYSTEM: STANDARDIZED SYNCHRONIZER & RECONCILIATION ENGINE
@@ -33,9 +33,15 @@ def synchronize_schema_by_rules(
     # and creates a copy of the master dictionary state alongside tracking flags.
     report_status(
         state="task",
-        message="INITIALIZING RECONCILIATION OPERATORS.",
-        log_path=log_path,
-        silent=True,
+        message="Initializing schema reconciliation operators and configuration state.",
+        context=LogContext(
+            component="database.synchronize_schema_by_rules",
+            log_path=log_path,
+            silent=True,
+            trace_id="synchronize_schema_by_rules",
+            actor=context.get("user"),
+            payload={"mapping_keys_count": len(mapping)},
+        ),
     )
 
     operators = get_operators()
@@ -45,9 +51,15 @@ def synchronize_schema_by_rules(
 
     report_status(
         state="info",
-        message=f"Synchronizer ready: {len(operators)} logic gates active.",
-        log_path=log_path,
-        silent=True,
+        message=f"Schema synchronizer ready: {len(operators)} active logic gates loaded.",
+        context=LogContext(
+            component="database.synchronize_schema_by_rules",
+            log_path=log_path,
+            silent=True,
+            trace_id="synchronize_schema_by_rules",
+            actor=context.get("user"),
+            payload={"operators_count": len(operators)},
+        ),
     )
 
     # MAPPING ITERATION & FIELD RESOLUTION
@@ -75,18 +87,34 @@ def synchronize_schema_by_rules(
                 if extracted_val not in [None, "", [], {}, False]:
                     report_status(
                         state="item",
-                        message=f"Populating: {target_key!r} injected with resolved value.",
-                        log_path=log_path,
-                        silent=True,
+                        message=f"Schema population: Field {target_key!r} successfully injected with resolved value.",
+                        context=LogContext(
+                            component="database.synchronize_schema_by_rules",
+                            log_path=log_path,
+                            silent=True,
+                            trace_id="synchronize_schema_by_rules",
+                            actor=context.get("user"),
+                            payload={"target_key": target_key},
+                        ),
                     )
                     updated_state[target_key] = extracted_val
                     is_populated = True
             elif current_val != extracted_val:
                 report_status(
                     state="info",
-                    message=f"Modification: {target_key!r} updated ({current_val!r} -> {extracted_val!r}).",
-                    log_path=log_path,
-                    silent=True,
+                    message=f"Schema modification: Field {target_key!r} updated from {current_val!r} to {extracted_val!r}.",
+                    context=LogContext(
+                        component="database.synchronize_schema_by_rules",
+                        log_path=log_path,
+                        silent=True,
+                        trace_id="synchronize_schema_by_rules",
+                        actor=context.get("user"),
+                        payload={
+                            "target_key": target_key,
+                            "old_value": current_val,
+                            "new_value": extracted_val,
+                        },
+                    ),
                 )
                 updated_state[target_key] = extracted_val
                 is_modified = True
@@ -95,8 +123,14 @@ def synchronize_schema_by_rules(
     # Logs completion of the reconciliation cycle and returns the updated state along with tracking flags.
     report_status(
         state="done",
-        message=f"RECONCILIATION COMPLETE: Population={is_populated!r}, Modification={is_modified!r}.",
-        log_path=log_path,
-        silent=True,
+        message=f"Schema reconciliation complete.",
+        context=LogContext(
+            component="database.synchronize_schema_by_rules",
+            log_path=log_path,
+            silent=True,
+            trace_id="synchronize_schema_by_rules",
+            actor=context.get("user"),
+            payload={"is_populated": is_populated, "is_modified": is_modified},
+        ),
     )
     return updated_state, is_populated, is_modified

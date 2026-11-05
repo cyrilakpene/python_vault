@@ -1,31 +1,196 @@
+import json
+from typing import Any
 from datetime import datetime
 
+from .constants import LogFormat, SEVERITY_LEVELS, SEVERITY_MAP  # type: ignore[import-not-found]
 
-# SESSION LOGGING & FILE I/O PERSISTENCE ENGINE
-# This utility manages background session logging, precise timestamp generation,
-# and safe file appending with defensive error handling to protect main execution threads.
-# [>] EXECUTING SESSION LOG COMMIT
-def commit_log(log_path: str | None, log_symbol: str, message: str) -> None:
+
+# LOGGING SUBSYSTEM: LEGACY LOG FORMATTING
+# This utility builds classic human-readable plain text log lines incorporating timestamps,
+# log symbols, and formatted message strings.
+# [>] EXECUTING LEGACY LOG FORMATTING
+def _format_legacy_log(
+    ts: str, log_symbol: str, message: str, include_timestamp: bool
+) -> str:
     """
-    Manages background session logging, timestamp generation, and safe file writing with defensive error handling.
+    Builds the classic human-readable plain text log line.
 
     Args:
-        log_path: Optional file system path string where log entries are written.
-        log_symbol: Symbol or prefix character identifying the log category or status.
-        message: The content string to record in the log file.
+        ts (str): The timestamp string marking the log event.
+        log_symbol (str): The symbol or status indicator representing the log severity.
+        message (str): The detailed log message text.
+
+    Returns:
+        str: A formatted plain text log string terminated with a newline character.
+    """
+    # LEGACY LOG LINE CONSTRUCTION
+    # Formats and returns the timestamp, symbol, and message into a standardized plain text log line.
+    if include_timestamp:
+        return f"[{ts}] {log_symbol} {message}\n"
+
+    return f"{message}\n"
+
+
+# LOGGING SUBSYSTEM: STRUCTURED JSON LOG RECORD BUILDER
+# This utility constructs enterprise-grade structured JSON log records (JSONL) incorporating timestamps,
+# severities, components, messages, trace IDs, span IDs, actors, elapsed durations, exceptions, and optional payload dictionaries.
+# [>] EXECUTING STRUCTURED LOG FORMATTING
+def _format_structured_log(
+    severity: str,
+    component: str,
+    message: str,
+    trace_id: str | None = None,
+    span_id: str | None = None,
+    actor: str | None = None,
+    elapsed_ms: float | int | None = None,
+    exception: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> str:
+    """
+    Builds an enterprise-grade structured JSON log record (JSONL).
+
+    Args:
+        severity (str): The severity level of the log record (e.g., info, warn, fail).
+        component (str): The subsystem or component emitting the log record.
+        message (str): The detailed log message text.
+        trace_id (str | None): Optional tracing identifier for request correlation. Defaults to None.
+        span_id (str | None): Optional span identifier for sub-operation tracking. Defaults to None.
+        actor (str | None): Optional actor or user identifier associated with the event. Defaults to None.
+        elapsed_ms (float | int | None): Optional execution time elapsed in milliseconds. Defaults to None.
+        exception (str | None): Optional exception message or error description string. Defaults to None.
+        payload (dict[str, Any] | None): Optional supplementary contextual payload data. Defaults to None.
+
+    Returns:
+        str: A serialized JSONL formatted log string terminated with a newline character.
+    """
+    # BASE LOG ENTRY INITIALIZATION
+    # Constructs the root log entry dictionary with ISO 8601 UTC timestamp, severity, component, and message.
+    log_entry: dict[str, Any] = {
+        "timestamp": datetime.now().isoformat() + "Z",
+        "severity": severity,
+        "component": component,
+        "message": message,
+    }
+
+    # TRACE ID INCLUSION
+    # Conditionally appends the trace identifier if provided for distributed tracking.
+    if trace_id:
+        log_entry["trace_id"] = trace_id
+
+    # SPAN ID INCLUSION
+    # Conditionally appends the span identifier if provided for sub-operation tracking.
+    if span_id:
+        log_entry["span_id"] = span_id
+
+    # ACTOR METADATA INCLUSION
+    # Conditionally appends the actor identifier if provided for auditing purposes.
+    if actor:
+        log_entry["actor"] = actor
+
+    # ELAPSED DURATION INCLUSION
+    # Conditionally appends performance execution time if provided.
+    if elapsed_ms is not None:
+        log_entry["elapsed_ms"] = elapsed_ms
+
+    # EXCEPTION METADATA INCLUSION
+    # Conditionally appends error or exception details if provided.
+    if exception:
+        log_entry["exception"] = exception
+
+    # PAYLOAD DICTIONARY INCLUSION
+    # Conditionally appends supplementary contextual payloads if provided.
+    if payload:
+        log_entry["payload"] = payload
+
+    # JSON SERIALIZATION & LINE TERMINATION
+    # Serializes the log entry dictionary into a compact JSON string and appends a newline character.
+    return json.dumps(log_entry) + "\n"
+
+
+# LOGGING SUBSYSTEM: BACKGROUND SESSION LOG COMMMIT & SEVERITY GATE
+# This utility manages background session logging by enforcing severity threshold gates,
+# mapping status symbols to enterprise severity levels, handling trace contexts, and writing dual-mode formats safely.
+# [>] EXECUTING LOG COMMIT
+def commit_log(
+    log_path: str | None,
+    log_symbol: str,
+    message: str,
+    component: str,
+    log_format: LogFormat,
+    payload: dict[str, Any] | None = None,
+    trace_id: str | None = None,
+    span_id: str | None = None,
+    actor: str | None = None,
+    elapsed_ms: float | int | None = None,
+    exception: str | None = None,
+    min_severity: str = "INFO",
+    include_timestamp: bool = True,
+) -> None:
+    """
+    Manages background session logging, enforcing severity threshold gates,
+    trace context handling, and dual-mode formatting with defensive error handling.
+
+    Args:
+        log_path (str | None): Optional file system path string where log entries are written.
+        log_symbol (str): Symbol or prefix character identifying the log category or status.
+        message (str): The content string to record in the log file.
+        component (str): Module or application subsystem name emitting the log.
+        log_format (LogFormat): Output format mode ("structured" or "legacy").
+        payload (dict[str, Any] | None): Optional dictionary containing rich key-value telemetry data. Defaults to None.
+        trace_id (str | None): Optional session or transaction trace identifier. Defaults to None.
+        span_id (str | None): Optional span identifier for sub-operation tracking. Defaults to None.
+        actor (str | None): Optional user or process identity string. Defaults to None.
+        elapsed_ms (float | int | None): Optional execution time elapsed in milliseconds. Defaults to None.
+        exception (str | None): Optional exception message or error description string. Defaults to None.
+        min_severity (str): Minimum threshold level required to commit a log record. Defaults to "INFO".
+        include_timestamp (bool): If True, passes real-time timestamp to the logger. Default to True.
+
+
+    Returns:
+        None: This function executes side effects by writing logs and does not return a value.
     """
     # LOG PATH EXISTENCE CHECK
-    # Verifies whether a valid log file path has been provided before attempting file I/O operations.
+    # Verifies that a valid log path target is provided before attempting file I/O operations.
     if log_path:
         try:
-            # FILE APPEND & TIMESTAMP GENERATION
-            # Opens the target log file in append mode, generates a current time string,
-            # and writes the formatted log entry safely.
+            # SYMBOL CLEANING & SEVERITY RESOLUTION
+            # Cleans the log symbol and resolves it to a standardized enterprise severity level via the central map.
+            clean_symbol = log_symbol.strip("[] ").strip()
+            severity: str = SEVERITY_MAP.get(clean_symbol, "INFO")
+
+            # SEVERITY THRESHOLD GATE CHECK
+            # Evaluates current severity rank against the minimum threshold rank; bypasses logging if below threshold.
+            current_rank = SEVERITY_LEVELS.get(severity, 20)
+            threshold_rank = SEVERITY_LEVELS.get(min_severity.upper(), 20)
+            if current_rank < threshold_rank:
+                return
+
+            # LOG STRING CONSTRUCTION
+            # Generates the current timestamp and formats the log line using legacy or structured formatters.
+            ts = datetime.now().strftime("%H:%M:%S")
+            if log_format == "legacy":
+                log_line = _format_legacy_log(
+                    ts, log_symbol, message, include_timestamp
+                )
+            else:
+                log_line = _format_structured_log(
+                    severity=severity,
+                    component=component,
+                    message=message,
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    actor=actor,
+                    elapsed_ms=elapsed_ms,
+                    exception=exception,
+                    payload=payload,
+                )
+
+            # SAFE FILE APPEND WITH UTF-8 ENCODING
+            # Opens the log file in append mode and writes the formatted log entry securely.
             with open(log_path, "a", encoding="utf-8") as f:
-                ts = datetime.now().strftime("%H:%M:%S")
-                f.write(f"[{ts}] {log_symbol} {message}\n")
+                f.write(log_line)
+
         except Exception:
             # DEFENSIVE EXCEPTION CATCH & SILENT FALLBACK
-            # Catches any file system or write errors, failing silently to prevent background
-            # logging failures from crashing the primary UI or application flow.
+            # Catches unexpected file I/O or serialization exceptions to prevent logging failures from crashing the main execution flow.
             pass

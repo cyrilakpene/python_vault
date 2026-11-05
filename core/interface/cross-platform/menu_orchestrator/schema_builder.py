@@ -47,7 +47,9 @@ def build_ui_schema(
     }
 
     if ui_config:
-        layout_defaults.update(ui_config)
+        layout_defaults.update(
+            {key: value for key, value in ui_config.items() if value is not None}
+        )
 
     # SECTION SPECIFICATION CONSTRUCTION
     # Builds the base section specification dictionary using resolved layout properties and entry items.

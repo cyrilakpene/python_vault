@@ -9,7 +9,7 @@ from .extractor import extract_source_value  # type: ignore[import-not-found]
 from .builder import commit_value_to_tree, scrub_empty_branches  # type: ignore[import-not-found]
 from .resolver import resolve_query_paths  # type: ignore[import-not-found]
 from .formatter import apply_unit_formatting  # type: ignore[import-not-found]
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # DATA CONTAINER SUBSYSTEM: METADATA SYNTHESIS & SIGNATURE-BASED JOIN PIPELINE
@@ -118,12 +118,19 @@ def join_metadata_by_signature(
 
     # BRANCH PRUNING & STATUS REPORTING
     # Scrubs empty skeleton branches and list elements from the tree, reports successful synthesis completion,
-    # and returns the finalized metadata dictionary[cite: 5].
+    # and returns the finalized metadata dictionary.
     result = scrub_empty_branches(final_dict)
 
     report_status(
         state="info",
-        message="SYNTHESIS COMPLETE: Metadata state consolidated successfully.",
-        log_path=log_path,
+        message="Synthesis complete: Metadata state consolidated successfully.",
+        context=LogContext(
+            component="database.join_metadata_by_signature",
+            log_path=log_path,
+            silent=False,
+            trace_id="join_metadata_by_signature",
+            actor=context.get("user"),
+            payload={"target_scopes": target_scopes},
+        ),
     )
     return result

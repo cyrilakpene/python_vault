@@ -1,10 +1,10 @@
-from typing import Any, Literal
+from typing import Any, Literal, Callable
 
 from .sanitizer import clean_data, sanitize, trace  # type: ignore[import-not-found]
 from .query import get_data, get_keys, print_path  # type: ignore[import-not-found]
 from .mutation import set_data, append_data, ingest_schema  # type: ignore[import-not-found]
 from .persistence import load_from_file, save_to_file  # type: ignore[import-not-found]
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # PIPELINE MANAGER: JSON-BASED OBJECT-RELATIONAL MAPPING (ORM)
@@ -66,7 +66,16 @@ class JSONDatabasePipeline:
         # INITIALIZATION TELEMETRY REPORTING
         # Emit symbolic log statement indicating memory allocation for the new pipeline state
         report_status(
-            state="info", message="Initializing new pipeline state", log_path=log_path
+            state="info",
+            message="Initializing new pipeline state",
+            context=LogContext(
+                component="database.JSONDatabasePipeline",
+                log_path=log_path,
+                silent=False,
+                trace_id="JSONDatabasePipeline",
+                actor=context.get("user"),
+                payload={"file_path": file_path},
+            ),
         )
 
         # CLASS INSTANTIATION & PATH BINDING
@@ -171,24 +180,30 @@ class JSONDatabasePipeline:
 
     # DATA CONTAINER SUBSYSTEM: DELEGATED DIAGNOSTIC INTERFACE WRAPPER
     # This method provides a clean wrapper for the high-level CLI diagnostic inspector by delegating
-    # the inspection and rendering logic to an external utility (`print_path`), maintaining modular
-    # separation of concerns across the persistence layer.
+    # the inspection, type-safe dispatch, and rendering logic to an external utility (`print_path`),
+    # maintaining modular separation of concerns across the persistence layer.
     def print_path(
         self,
         path: str,
-        view: Literal["flat", "json"] | dict[str, str] = "flat",
+        view: (
+            Literal["flat", "json"]
+            | dict[str, str]
+            | Callable[[Any, list[str], str], None]
+        ) = "flat",
     ) -> None:
         """
         High-level CLI inspector by delegating to a modular print utility.
 
         Args:
             path (str): Dot-notated string targeting specific nodes within the internal state.
-            view (Literal["flat", "json"] | dict[str, str], optional): Output format control. Defaults to "flat".
+            view (Literal["flat", "json"] | dict[str, str] | Callable[[Any, list[str], str], None], optional):
+                Output format control, view configuration schema, or a custom render callable. Defaults to "flat".
         """
         # PERSISTENCE DELEGATION: EXTERNAL PRINT_PATH INVOCATION
-        # Delegate path resolution, cleaning, and framed terminal rendering to the centralized print_path utility,
-        # passing the pipeline instance, target path, and view configuration.
-        print_path(self, path, view)
+        # Delegate path resolution, metadata pruning, strategy resolution, and framed terminal
+        # rendering to the centralized print_path utility, passing the pipeline instance data,
+        # target path, and view configuration or custom renderer callable.
+        print_path(self.data, path, view)
 
     # DATA CONTAINER SUBSYSTEM: DELEGATED EXPLORATION API WRAPPER
     # This method provides a clean wrapper for the schema exploration API by delegating
@@ -254,7 +269,7 @@ class JSONDatabasePipeline:
         # PERSISTENCE DELEGATION: EXTERNAL INGEST_SCHEMA INVOCATION
         # Delegate schema validation, input parsing, and state assignment logic
         # to the centralized ingest_schema utility, passing the pipeline instance, inputs, key, and schema.
-        return ingest_schema(self, inputs, custom_key, schema=schema)
+        return ingest_schema(self.data, inputs, custom_key, schema=schema)
 
     # DATA CONTAINER SUBSYSTEM: DELEGATED DATA APPEND WRAPPER
     # This method provides a clean wrapper for appending new entries to sequence-based data nodes
@@ -278,7 +293,7 @@ class JSONDatabasePipeline:
         # PERSISTENCE DELEGATION: EXTERNAL APPEND_DATA INVOCATION
         # Delegate the sequence targeting, uniqueness verification, and list extension logic
         # to the centralized append_data utility, passing the pipeline instance, path, entry, and flags.
-        return append_data(self, path, new_entry, unique, auto_create)
+        return append_data(self.data, path, new_entry, unique, auto_create)
 
     # DATA CONTAINER SUBSYSTEM: DELEGATED PERSISTENCE SAVE WRAPPER
     # This method provides a clean wrapper for persisting pipeline state to disk by delegating

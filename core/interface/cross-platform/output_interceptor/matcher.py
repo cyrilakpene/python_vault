@@ -2,6 +2,7 @@ import re
 from typing import Callable
 
 from .formatter import format_match  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: LINE INTERCEPTION & REGEX TRANSFORMATION
@@ -38,5 +39,20 @@ def intercept_line(
     try:
         formatted = format_match(target=target, kwargs=kwargs, args=args)
         return f"{formatted}\033[K"
-    except (KeyError, ValueError, IndexError, TypeError):
+    except (KeyError, ValueError, IndexError, TypeError) as e:
+        # FORMATTING EXCEPTION HANDLING & FALLBACK
+        # Reports a warning when dynamic formatting fails and falls back to the original line.
+        report_status(
+            state="warn",
+            message=f"Formatting template error: {e}. Falling back to original line.",
+            context=LogContext(
+                component="interface.interceptor",
+                log_path=log_path,
+                silent=False,
+                trace_id="interceptor",
+                actor=context.get("user"),
+                exception=str(e),
+                payload={"line": line.strip()},
+            ),
+        )
         return line

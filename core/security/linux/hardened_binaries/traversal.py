@@ -3,7 +3,7 @@ import os
 from .symlink import verify_symlink_trust  # type: ignore[import-not-found]
 from .permissions import verify_posix_ownership_and_permissions  # type: ignore[import-not-found]
 from .acls import verify_acls  # type: ignore[import-not-found]
-from .contants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: HARDENED BINARY DISCOVERY & SECURITY AUDIT
@@ -36,7 +36,14 @@ def find_hardened_binary(tool: str, effective_scopes: tuple[str, ...]) -> str | 
                 report_status(
                     state="warn",
                     message=f"Security Warning: {test_path} (OUTSIDE SCOPE)",
-                    log_path=log_path,
+                    context=LogContext(
+                        component="security.hardened_binaries",
+                        log_path=log_path,
+                        silent=False,
+                        trace_id="hardened_binaries",
+                        actor=context.get("user"),
+                        payload={"test_path": test_path},
+                    ),
                 )
                 continue
 
@@ -46,7 +53,14 @@ def find_hardened_binary(tool: str, effective_scopes: tuple[str, ...]) -> str | 
                 report_status(
                     state="warn",
                     message=f"Integrity Rejection: {real_destination} failed ownership check.",
-                    log_path=log_path,
+                    context=LogContext(
+                        component="security.hardened_binaries",
+                        log_path=log_path,
+                        silent=False,
+                        trace_id="hardened_binaries",
+                        actor=context.get("user"),
+                        payload={"real_destination": real_destination},
+                    ),
                 )
                 continue
 
@@ -55,7 +69,19 @@ def find_hardened_binary(tool: str, effective_scopes: tuple[str, ...]) -> str | 
             try:
                 verify_acls(real_destination)
             except Exception as e:
-                report_status(state="warn", message=str(e), log_path=log_path)
+                report_status(
+                    state="warn",
+                    message=str(e),
+                    context=LogContext(
+                        component="security.hardened_binaries",
+                        log_path=log_path,
+                        silent=False,
+                        trace_id="hardened_binaries",
+                        actor=context.get("user"),
+                        exception=str(e),
+                        payload={"real_destination": real_destination},
+                    ),
+                )
                 continue
 
             # SUCCESSFUL VERIFICATION RETURN

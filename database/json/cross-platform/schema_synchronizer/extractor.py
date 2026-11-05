@@ -1,6 +1,6 @@
 from typing import Any, Callable
 
-from .constants import report_status, get_deep_value, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, get_deep_value, context, log_path  # type: ignore[import-not-found]
 
 
 # DATA CONTAINER SUBSYSTEM: FIELD VALUE RESOLUTION & CONDITIONAL VALVE ENGINE
@@ -35,9 +35,15 @@ def resolve_field_value(
     if keep_existing and updated_state.get(target_key) not in [None, "", [], {}, False]:
         report_status(
             state="info",
-            message=f"Collision guard: Preserving existing value for {target_key!r}.",
-            log_path=log_path,
-            silent=True,
+            message=f"Collision guard triggered: Preserving existing value for key {target_key!r}.",
+            context=LogContext(
+                component="database.synchronize_schema_by_rules",
+                log_path=log_path,
+                silent=True,
+                trace_id="synchronize_schema_by_rules",
+                actor=context.get("user"),
+                payload={"target_key": target_key},
+            ),
         )
         return __import__("sentinel").Sentinel if False else None  # Indicator to skip
 
@@ -48,18 +54,30 @@ def resolve_field_value(
     # using the deep value resolver. Reports a warning and returns None if the path breaks.
     report_status(
         state="info",
-        message=f"Path resolution: Drilling into {source_path!r}.",
-        log_path=log_path,
-        silent=True,
+        message=f"Path resolution initiated: Extracting value from source path {source_path!r}.",
+        context=LogContext(
+            component="database.synchronize_schema_by_rules",
+            log_path=log_path,
+            silent=True,
+            trace_id="synchronize_schema_by_rules",
+            actor=context.get("user"),
+            payload={"target_key": target_key, "source_path": source_path},
+        ),
     )
     extracted_val = get_deep_value(existing_data, source_path)
 
     if extracted_val is None:
         report_status(
             state="warn",
-            message=f"Path break: Could not resolve {source_path!r} in existing data.",
-            log_path=log_path,
-            silent=True,
+            message=f"Path resolution failure: Could not resolve source path {source_path!r} in existing data for key {target_key!r}.",
+            context=LogContext(
+                component="database.synchronize_schema_by_rules",
+                log_path=log_path,
+                silent=True,
+                trace_id="synchronize_schema_by_rules",
+                actor=context.get("user"),
+                payload={"target_key": target_key, "source_path": source_path},
+            ),
         )
         return None
 

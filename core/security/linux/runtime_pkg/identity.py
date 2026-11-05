@@ -2,7 +2,7 @@ import os
 import pwd
 import grp
 
-from .constants import report_status
+from .constants import report_status, LogContext  # type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: USER IDENTITY & ENVIRONMENT RESOLUTION
@@ -48,11 +48,14 @@ def resolve_user_identity() -> tuple[str, int, int, str]:
 # This utility validates the existence of a target POSIX group on the system,
 # returning its GID or gracefully reporting a failure and exiting with instructions.
 # [>] EXECUTING POSIX GROUP VALIDATION
-def validate_group(target_group: str, session_path: str | None) -> int:
+def validate_group(
+    human_user: str | None, target_group: str, session_path: str | None
+) -> int:
     """
     Validates the target POSIX group existence and returns its GID.
 
     Args:
+        human_user (str | None): The resolved human username to audit.
         target_group (str): The name of the POSIX group to validate.
         session_path (str | None): The file path for logging error status reports, if any.
 
@@ -75,11 +78,25 @@ def validate_group(target_group: str, session_path: str | None) -> int:
         report_status(
             state="fail",
             message=f"Required group {target_group!r} missing from system.",
-            log_path=session_path,
+            context=LogContext(
+                component="security.runtimecontext",
+                log_path=session_path,
+                silent=False,
+                trace_id="runtimecontext",
+                actor=human_user,
+                payload={"target_group": target_group},
+            ),
         )
         report_status(
             state="item",
             message=f"HINT: Create it using 'sudo groupadd {target_group}'",
-            log_path=session_path,
+            context=LogContext(
+                component="security.runtimecontext",
+                log_path=session_path,
+                silent=True,
+                trace_id="runtimecontext",
+                actor=human_user,
+                payload={"target_group": target_group},
+            ),
         )
         raise SystemExit(1)

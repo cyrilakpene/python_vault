@@ -1,23 +1,7 @@
 import sys
 from typing import TextIO
 
-# LOCALIZED SYMBOLIC MAPPING: ENCAPSULATED STATUS INDICATORS
-# We define the status indicators within the function scope to enforce
-# encapsulation. This ensures the 'Business Logic' of the reporter
-# remains self-contained and prevents unintended side-effects in
-# the broader application state.
-STATUS_MAP: dict[str, str] = {
-    "task": "[>]",
-    "info": "[~]",
-    "log_info": " [~]",
-    "warn": "[!]",
-    "item": "  [-]",
-    "done": "[+]",
-    "fail": "[x]",
-    "input": "[?]",
-    "debug": " [d]",
-    "proc": "[*]",
-}
+from .constants import STATUS_MAP  # type: ignore[import-not-found]
 
 
 # SYMBOL RESOLUTION & STATUS MAPPING ENGINE

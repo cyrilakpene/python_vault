@@ -17,8 +17,8 @@ from .primitive import (
 from .security import parse_password  # type: ignore[import-not-found]
 from .ui import select_option  # type: ignore[import-not-found]
 
-from status_reporter import report_status  # type: ignore[import-not-found]
-from runtime_pkg import log_path  # type: ignore[import-not-found]
+from status_reporter import report_status, LogContext  # type: ignore[import-not-found]
+from runtime_pkg import context, log_path  # type: ignore[import-not-found]
 
 # CONFIGURATION SUBSYSTEM: TYPE PARSING MAPPING REGISTRY
 # This dictionary maps type string identifiers to their respective parsing and validation callables,

@@ -10,7 +10,7 @@ from .environment import build_safe_environment  # type: ignore[import-not-found
 from .exceptions import PathResolutionError, UserCancelError  # type: ignore[import-not-found]
 from .interface import SessionInterface  # type: ignore[import-not-found]
 from .streams import configure_session_streams  # type: ignore[import-not-found]
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # PROCESS MANAGEMENT SUBSYSTEM: HARDENED SESSION CONTEXT MANAGER
@@ -78,8 +78,19 @@ def open_secure_session(
     except FileNotFoundError as e:
         report_status(
             state="warn",
-            message=f"File not found: {e.filename}",
-            log_path=log_path,
+            message=f"Path resolution error: Required file or binary not found -> {e.filename}",
+            context=LogContext(
+                component="security.executor",
+                log_path=log_path,
+                silent=False,
+                trace_id="executor",
+                actor=context.get("user"),
+                exception=str(e),
+                payload={
+                    "error_type": "FileNotFoundError",
+                    "filename": str(e.filename),
+                },
+            ),
         )
         raise PathResolutionError(filename=str(e.filename)) from e
 
@@ -92,7 +103,18 @@ def open_secure_session(
         report_status(
             state="warn",
             message=str(UserCancelError()),
-            log_path=log_path,
+            context=LogContext(
+                component="security.executor",
+                log_path=log_path,
+                silent=False,
+                trace_id="executor",
+                actor=context.get("user"),
+                exception=str(UserCancelError()),
+                payload={
+                    "error_type": "KeyboardInterrupt",
+                    "reason": "user_interrupted_process",
+                },
+            ),
         )
         raise UserCancelError from None
 
@@ -115,8 +137,19 @@ def open_secure_session(
             if exit_code is not None and exit_code != 0:
                 report_status(
                     state="warn",
-                    message=f"(Exit {exit_code}): {shlex.join(cmd)}",
-                    log_path=log_path,
+                    message=f"Secure session process execution failed with exit code {exit_code} -> {shlex.join(cmd)}",
+                    context=LogContext(
+                        component="security.executor",
+                        log_path=log_path,
+                        silent=False,
+                        trace_id="executor",
+                        actor=context.get("user"),
+                        payload={
+                            "error_type": "SessionProcessFailed",
+                            "returncode": exit_code,
+                            "command": shlex.join(cmd),
+                        },
+                    ),
                 )
 
             # PIPE CLEANUP & CLOSURE

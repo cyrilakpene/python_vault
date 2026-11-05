@@ -9,6 +9,8 @@ from .constants import (
     SUPPORTED_TYPE_KEYS,  # type: ignore[import-not-found]
     SUPPORTED_INPUT_KEYS,  # type: ignore[import-not-found]
     report_status,  # type: ignore[import-not-found]
+    LogContext,  # type: ignore[import-not-found]
+    context,  # type: ignore[import-not-found]
     log_path,  # type: ignore[import-not-found]
 )
 
@@ -45,8 +47,17 @@ def _fetch_raw_input(
                 report_status(
                     state="info",
                     message=f"Empty input: Applying schema default {user_val!r}.",
-                    silent=True,
-                    log_path=log_path,
+                    context=LogContext(
+                        component="interface.user_input",
+                        log_path=log_path,
+                        silent=True,
+                        trace_id="user_input",
+                        actor=context.get("user"),
+                        payload={
+                            "field_key": field.get("key"),
+                            "default_applied": user_val,
+                        },
+                    ),
                 )
         return user_val
 
@@ -58,7 +69,15 @@ def _fetch_raw_input(
         report_status(
             state="warn",
             message=str(UserCancelError()),
-            log_path=log_path,
+            context=LogContext(
+                component="interface.user_input",
+                log_path=log_path,
+                silent=False,
+                trace_id="user_input",
+                actor=context.get("user"),
+                exception=str(UserCancelError()),
+                payload={"field_key": field.get("key")},
+            ),
         )
         raise UserCancelError from None
 
@@ -91,8 +110,14 @@ def _process_field_casting(
         report_status(
             state="info",
             message=f"Type conversion: Attempting cast to {cast_type!r}.",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.user_input",
+                log_path=log_path,
+                silent=True,
+                trace_id="user_input",
+                actor=context.get("user"),
+                payload={"field_key": field.get("key"), "cast_type": cast_type},
+            ),
         )
 
     # TYPE MAP LOOKUP & CASTER RESOLUTION
@@ -147,7 +172,18 @@ def _handle_field_failure(
     # MAX RETRIES EXCEPTION CHECK
     # Handles maximum retry exhaustion by logging failure and marking the status.
     if isinstance(error, MaxRetriesExceededError):
-        report_status(state="fail", message=str(error), log_path=log_path)
+        report_status(
+            state="fail",
+            message=str(error),
+            context=LogContext(
+                component="interface.user_input",
+                log_path=log_path,
+                trace_id="user_input",
+                actor=context.get("user"),
+                exception=str(error),
+                payload={"field_key": field_key, "attempts": attempt_counter},
+            ),
+        )
         results["__status__"] = "MAX_RETRIES_EXCEEDED"
         return False, attempt_counter
 
@@ -157,8 +193,15 @@ def _handle_field_failure(
     report_status(
         state="info",
         message="Handling casting exception.",
-        silent=True,
-        log_path=log_path,
+        context=LogContext(
+            component="interface.user_input",
+            log_path=log_path,
+            silent=True,
+            trace_id="user_input",
+            actor=context.get("user"),
+            exception=str(error),
+            payload={"field_key": field_key, "attempt": attempt_counter},
+        ),
     )
 
     # CRITICAL FIELD & PASSWORD REJECTION HANDLING
@@ -169,7 +212,18 @@ def _handle_field_failure(
             if str(error)
             else f"{user_val!r} cannot be cast to {cast_type!r}. REJECTING."
         )
-        report_status(state="warn", message=error_msg, log_path=log_path)
+        report_status(
+            state="warn",
+            message=error_msg,
+            context=LogContext(
+                component="interface.user_input",
+                log_path=log_path,
+                trace_id="user_input",
+                actor=context.get("user"),
+                exception=str(error),
+                payload={"field_key": field_key, "critical": is_field_critical},
+            ),
+        )
         return True, attempt_counter
     else:
         # NON-CRITICAL FALLBACK ASSIGNMENT & MESSAGING
@@ -192,7 +246,17 @@ def _handle_field_failure(
 
         # REPAIR WARNING REPORTING & RETURN
         # Reports the fallback repair action and returns success indicators with the updated counter.
-        report_status(state=state, message=repair_msg, log_path=log_path)
+        report_status(
+            state=state,
+            message=repair_msg,
+            context=LogContext(
+                component="interface.user_input",
+                log_path=log_path,
+                trace_id="user_input",
+                actor=context.get("user"),
+                payload={"field_key": field_key, "fallback_value": results[field_key]},
+            ),
+        )
         return False, attempt_counter
 
 
@@ -219,9 +283,17 @@ def user_input(
     # Reports the start of inbound schema architecture validation silently.
     report_status(
         state="task",
-        message="VALIDATING INBOUND SCHEMA ARCHITECTURE.",
-        silent=True,
-        log_path=log_path,
+        message="Validating inbound schema architecture.",
+        context=LogContext(
+            component="interface.user_input",
+            log_path=log_path,
+            silent=True,
+            trace_id="user_input",
+            actor=context.get("user"),
+            payload={
+                "total_fields": len(schema),
+            },
+        ),
     )
 
     # WEAVER INITIALIZATION
@@ -237,14 +309,33 @@ def user_input(
     # UI PROTOCOL EVALUATION REPORT
     # Evaluates UI protocols silently before checking silent mode flags.
     report_status(
-        state="info", message="Evaluating UI protocol.", silent=True, log_path=log_path
+        state="info",
+        message=f"Evaluating UI protocol. Registry loaded: {len(TYPE_MAP)} type_map and"
+        f" {len(INPUT_MAP)} input_type operators available.",
+        context=LogContext(
+            component="interface.user_input",
+            log_path=log_path,
+            silent=True,
+            trace_id="user_input",
+            actor=context.get("user"),
+            payload={
+                "cast_type_available": list(TYPE_MAP.keys()),
+                "input_type_available": list(INPUT_MAP.keys()),
+            },
+        ),
     )
     if not silent:
         status_label: str = "(STRICT ENFORCEMENT)" if critical else "(STANDARD)"
         report_status(
             state="task",
             message=f"SESSION START: {status_label} MODE",
-            log_path=log_path,
+            context=LogContext(
+                component="interface.user_input",
+                log_path=log_path,
+                silent=False,
+                trace_id="user_input",
+                actor=context.get("user"),
+            ),
         )
 
     # DATA INGRESS LOOP INITIATION REPORT
@@ -252,8 +343,13 @@ def user_input(
     report_status(
         state="proc",
         message="Executing data ingress loop...",
-        silent=True,
-        log_path=log_path,
+        context=LogContext(
+            component="interface.user_input",
+            log_path=log_path,
+            silent=True,
+            trace_id="user_input",
+            actor=context.get("user"),
+        ),
     )
 
     # SCHEMA FIELD ITERATION & INGRESS LOOP
@@ -275,8 +371,17 @@ def user_input(
         report_status(
             state="info",
             message=f"Collecting field: {field_key!r}.",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.user_input",
+                log_path=log_path,
+                silent=True,
+                trace_id="user_input",
+                actor=context.get("user"),
+                payload={
+                    "field_key": field_key,
+                    "critical": is_field_critical,
+                },
+            ),
         )
 
         while True:
@@ -289,7 +394,17 @@ def user_input(
                 report_status(
                     state="warn",
                     message=f"Input rejected: {field_label!r} cannot be null in critical mode.",
-                    log_path=log_path,
+                    context=LogContext(
+                        component="interface.user_input",
+                        log_path=log_path,
+                        silent=False,
+                        trace_id="user_input",
+                        actor=context.get("user"),
+                        payload={
+                            "field_key": field_key,
+                            "reason": "null_in_critical_mode",
+                        },
+                    ),
                 )
                 continue
 
@@ -303,7 +418,14 @@ def user_input(
                 report_status(
                     state="item",
                     message=f"Field {field_key!r} registered.",
-                    silent=True,
+                    context=LogContext(
+                        component="interface.user_input",
+                        log_path=log_path,
+                        silent=True,
+                        trace_id="user_input",
+                        actor=context.get("user"),
+                        payload={"field_key": field_key, "registered": True},
+                    ),
                 )
                 break
             except (MaxRetriesExceededError, ValueError, TypeError) as e:
@@ -312,7 +434,19 @@ def user_input(
                     or results.get("__status__") == "MAX_RETRIES_EXCEEDED"
                 ):
                     results["__status__"] = "MAX_RETRIES_EXCEEDED"
-                    report_status(state="fail", message=str(e), log_path=log_path)
+                    report_status(
+                        state="fail",
+                        message=str(e),
+                        context=LogContext(
+                            component="interface.user_input",
+                            log_path=log_path,
+                            silent=False,
+                            trace_id="user_input",
+                            actor=context.get("user"),
+                            exception=str(e),
+                            payload={"field_key": field_key},
+                        ),
+                    )
                     return results
 
                 # FIELD FAILURE HANDLING & RETRY DELEGATION
@@ -335,7 +469,16 @@ def user_input(
     # RECONCILED STATE READY REPORT
     # Reports the successful completion and reconciliation of the user input collection process.
     report_status(
-        state="done", message="RECONCILED STATE READY.", silent=True, log_path=log_path
+        state="done",
+        message="Reconciled state ready.",
+        context=LogContext(
+            component="interface.user_input",
+            log_path=log_path,
+            silent=True,
+            trace_id="user_input",
+            actor=context.get("user"),
+            payload={"collected_fields_count": len(results)},
+        ),
     )
 
     # RESULTS DICTIONARY RETURN

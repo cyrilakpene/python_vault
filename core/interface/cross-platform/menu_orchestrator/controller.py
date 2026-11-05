@@ -1,10 +1,17 @@
 import inspect
 from typing import Any, Callable
 
-from .constants import heuristic_ui_renderer, user_input  # type: ignore[import-not-found]
 from .preprocessing import preprocess_options  # type: ignore[import-not-found]
 from .schema_builder import build_ui_schema  # type: ignore[import-not-found]
 from .dispatcher import dispatch_tokens  # type: ignore[import-not-found]
+from .constants import (
+    report_status,  # type: ignore[import-not-found]
+    LogContext,  # type: ignore[import-not-found]
+    user_input,  # type: ignore[import-not-found]
+    heuristic_ui_renderer,  # type: ignore[import-not-found]
+    context,  # type: ignore[import-not-found]
+    log_path,  # type: ignore[import-not-found]
+)
 
 
 # MENU CONTROLLER & UI FLOW ORCHESTRATION ENGINE
@@ -41,6 +48,19 @@ def menu_controller(
     Returns:
         Any: The execution result of the selected option(s), "BACK" if navigating backward, or None if aborted.
     """
+    report_status(
+        state="info",
+        message=f"Starting menu controller session for: {title!r}",
+        context=LogContext(
+            component="interface.menu_controller",
+            log_path=log_path,
+            silent=True,
+            trace_id="menu_controller",
+            actor=context.get("user"),
+            payload={"title": title, "options_count": len(options)},
+        ),
+    )
+
     # OPTION PREPROCESSING & INGRESS PREPARATION
     # Normalizes option definitions, extracts hotkeys or numeric indices, injects back navigation if permitted,
     # and constructs interactive prompt strings.
@@ -60,7 +80,11 @@ def menu_controller(
     # RENDERER ARGUMENT CONFIGURATION & SIGNATURE INSPECTION
     # Prepares rendering parameters from layout configuration and filters them
     # against the target renderer function's parameter signature.
-    renderer_args: dict[str, Any] = {"schema": ui_schema, "state": state}
+    renderer_args: dict[str, Any] = {
+        "schema": ui_schema,
+        "state": state,
+        "template": template if template is not None else "{key}: {label}",
+    }
 
     if ui_config:
         if "width" in ui_config:
@@ -110,6 +134,19 @@ def menu_controller(
         return None
 
     raw_selection: Any = ingress_results.get("selection", "")
+
+    report_status(
+        state="info",
+        message=f"Dispatching selected tokens for menu: {title!r}",
+        context=LogContext(
+            component="interface.menu_controller",
+            log_path=log_path,
+            silent=True,
+            trace_id="menu_controller",
+            actor=context.get("user"),
+            payload={"raw_selection": str(raw_selection)},
+        ),
+    )
 
     # TOKEN DISPATCH & EXECUTION ROUTING
     # Normalizes selected tokens, maps them to functional action vectors, and dispatches execution.

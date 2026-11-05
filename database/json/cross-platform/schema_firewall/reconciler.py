@@ -1,6 +1,6 @@
 from typing import Any
 
-from .constants import report_status, log_path, get_deep_value  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, get_deep_value, context, log_path  # type: ignore[import-not-found]
 
 
 # DATA CONTAINER SUBSYSTEM: SCHEMA VALIDATION & FIELD SATISFACTION ENGINE
@@ -30,9 +30,15 @@ def is_field_satisfied(
     if not schema_key:
         report_status(
             state="warn",
-            message="Invalid schema entry detected (missing key).",
-            log_path=log_path,
-            silent=True,
+            message="Schema validation error: Missing 'key' attribute in field definition.",
+            context=LogContext(
+                component="database.filter_schema_by_keys",
+                log_path=log_path,
+                silent=True,
+                trace_id="filter_schema_by_keys",
+                actor=context.get("user"),
+                payload={"field": field},
+            ),
         )
         return False
 
@@ -42,9 +48,15 @@ def is_field_satisfied(
     if schema_key in existing_data:
         report_status(
             state="item",
-            message=f"Match found: Root-level key {schema_key!r} exists.",
-            log_path=log_path,
-            silent=True,
+            message=f"Schema match verified: Root-level key {schema_key!r} found.",
+            context=LogContext(
+                component="database.filter_schema_by_keys",
+                log_path=log_path,
+                silent=True,
+                trace_id="filter_schema_by_keys",
+                actor=context.get("user"),
+                payload={"schema_key": schema_key},
+            ),
         )
         return True
 
@@ -55,18 +67,30 @@ def is_field_satisfied(
         db_path: str = mapping[schema_key]
         report_status(
             state="info",
-            message=f"Resolving mapped path: {schema_key!r} -> {db_path!r}.",
-            log_path=log_path,
-            silent=True,
+            message=f"Resolving mapped path for schema key {schema_key!r} to database path {db_path!r}.",
+            context=LogContext(
+                component="database.filter_schema_by_keys",
+                log_path=log_path,
+                silent=True,
+                trace_id="filter_schema_by_keys",
+                actor=context.get("user"),
+                payload={"schema_key": schema_key, "db_path": db_path},
+            ),
         )
 
         resolved_val = get_deep_value(existing_data, db_path)
         if resolved_val is not None:
             report_status(
                 state="item",
-                message=f"Match found: Path {db_path!r} resolved to value.",
-                log_path=log_path,
-                silent=True,
+                message=f"Schema match verified: Mapped path {db_path!r} successfully resolved.",
+                context=LogContext(
+                    component="database.filter_schema_by_keys",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="filter_schema_by_keys",
+                    actor=context.get("user"),
+                    payload={"db_path": db_path, "schema_key": schema_key},
+                ),
             )
             return True
 

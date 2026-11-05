@@ -1,8 +1,8 @@
 import argparse
 from typing import Any, Callable
 
-from .constants import report_status, log_path  # type: ignore[import-not-found]
 from .exceptions import CommandDispatchError, HandlerNotFoundError  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # ROOT EXECUTION GATE & COMMAND DISPATCHING ENGINE
@@ -33,8 +33,13 @@ def handle_root_execution(
     report_status(
         state="info",
         message="Parsing command line arguments...",
-        silent=True,
-        log_path=log_path,
+        context=LogContext(
+            component="interface.cli_router",
+            log_path=log_path,
+            silent=True,
+            trace_id="cli_router",
+            actor=context.get("user"),
+        ),
     )
 
     # CLI ARGUMENT PARSING
@@ -43,8 +48,14 @@ def handle_root_execution(
     report_status(
         state="info",
         message=f"Parsed Namespace: {args}",
-        silent=True,
-        log_path=log_path,
+        context=LogContext(
+            component="interface.cli_router",
+            log_path=log_path,
+            silent=True,
+            trace_id="cli_router",
+            actor=context.get("user"),
+            payload={"namespace": str(args)},
+        ),
     )
 
     # DISPATCH EXECUTION TRACKING FLAG
@@ -57,15 +68,23 @@ def handle_root_execution(
         report_status(
             state="item",
             message=f"Routing execution to subcommand: {sub_cmd!r}",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.cli_router",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli_router",
+                actor=context.get("user"),
+                payload={"subcommand": sub_cmd},
+            ),
         )
         # EXECUTE SUBCOMMAND CALLBACK
         # Immediately transfers control flow to the matched subcommand callback using parsed namespace arguments.
         try:
             handlers[sub_cmd](args)
         except Exception as err:
-            raise CommandDispatchError(f"Error encountered while executing subcommand handler for {sub_cmd!r}: {err}") from err
+            raise CommandDispatchError(
+                f"Error encountered while executing subcommand handler for {sub_cmd!r}: {err}"
+            ) from err
         return handlers
 
     # OPTIONAL & POSITIONAL ARGUMENT DISPATCH LOOP
@@ -73,8 +92,13 @@ def handle_root_execution(
     report_status(
         state="info",
         message="Evaluating argument handlers...",
-        silent=True,
-        log_path=log_path,
+        context=LogContext(
+            component="interface.cli_router",
+            log_path=log_path,
+            silent=True,
+            trace_id="cli_router",
+            actor=context.get("user"),
+        ),
     )
     for name, handler in handlers.items():
         # EVALUATE ACTIVE ARGUMENT VALUE
@@ -84,15 +108,23 @@ def handle_root_execution(
             report_status(
                 state="item",
                 message=f"Executing handler for argument: {name!r} (value={val})",
-                silent=True,
-                log_path=log_path,
+                context=LogContext(
+                    component="interface.cli_router",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="cli_router",
+                    actor=context.get("user"),
+                    payload={"argument": name, "value": str(val)},
+                ),
             )
             # EXECUTE MATCHED HANDLER
             # Invokes the mapped callback with parsed arguments and trips the execution tracking flag.
             try:
                 handler(args)
             except Exception as err:
-                raise CommandDispatchError(f"Error encountered while executing handler for argument {name!r}: {err}") from err
+                raise CommandDispatchError(
+                    f"Error encountered while executing handler for argument {name!r}: {err}"
+                ) from err
             executed = True
 
     # UNMATCHED COMMAND FALLBACK & DEFAULT HANDLER DISPATCH
@@ -103,27 +135,41 @@ def handle_root_execution(
         default_handler = config.get("default_handler")
         if default_handler:
             if not callable(default_handler):
-                raise HandlerNotFoundError("Configured 'default_handler' is not callable.")
+                raise HandlerNotFoundError(
+                    "Configured 'default_handler' is not callable."
+                )
             report_status(
                 state="info",
                 message="No matching argument handlers tripped. Invoking default_handler.",
-                silent=True,
-                log_path=log_path,
+                context=LogContext(
+                    component="interface.cli_router",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="cli_router",
+                    actor=context.get("user"),
+                ),
             )
             # TRIGGER DEFAULT CALLBACK
             # Executes the default fallback handler with parsed argument namespace.
             try:
                 default_handler(args)
             except Exception as err:
-                raise CommandDispatchError(f"Error encountered while executing 'default_handler': {err}") from err
+                raise CommandDispatchError(
+                    f"Error encountered while executing 'default_handler': {err}"
+                ) from err
         else:
             # DISPLAY HELP DOCUMENTATION
             # Prints auto-generated argument parser usage instructions to terminal.
             report_status(
                 state="warn",
                 message="No handlers matched and no default_handler found. Rendering help documentation:",
-                silent=True,
-                log_path=log_path,
+                context=LogContext(
+                    component="interface.cli_router",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="cli_router",
+                    actor=context.get("user"),
+                ),
             )
             parser.print_help()
 

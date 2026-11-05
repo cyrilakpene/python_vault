@@ -4,7 +4,7 @@ from .heuristics import get_heuristics  # type: ignore[import-not-found]
 from .resolver import resolve_source_data  # type: ignore[import-not-found]
 from .scrubber import create_scrubber  # type: ignore[import-not-found]
 from .model import FilterFeatures  # type: ignore[import-not-found]
-from .contants import report_status, log_path  # type: ignore[import-not-found]
+from .contants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # DATA CONTAINER SUBSYSTEM: DATA DISTILLATION & MULTI-PASS FILTERING PIPELINE
@@ -36,8 +36,14 @@ def fetch_filtered(
     report_status(
         state="task",
         message=f"Initiating data distillation: Path {path!r}.",
-        silent=True,
-        log_path=log_path,
+        context=LogContext(
+            component="database.fetch_filtered",
+            log_path=log_path,
+            silent=True,
+            trace_id="fetch_filtered",
+            actor=context.get("user"),
+            payload={"path": path},
+        ),
     )
 
     # HEURISTICS & STRATEGY ENGAGEMENT
@@ -47,9 +53,19 @@ def fetch_filtered(
     heuristics = get_heuristics(path, feature_map)
     report_status(
         state="item",
-        message=f"Heuristics engaged: Global Merge={feature_map.get('global_merge', False)}.",
-        log_path=log_path,
-        silent=True,
+        message=f"Heuristics engaged.",
+        context=LogContext(
+            component="database.fetch_filtered",
+            log_path=log_path,
+            silent=True,
+            trace_id="fetch_filtered",
+            actor=context.get("user"),
+            payload={
+                "global_merge": feature_map.get("global_merge"),
+                "strict": feature_map.get("strict"),
+                "flatten_atomic": feature_map.get("flatten_atomic"),
+            },
+        ),
     )
 
     # SOURCE RESOLUTION & RECURSIVE SCRUBBING

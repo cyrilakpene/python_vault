@@ -3,7 +3,7 @@ import os
 import shutil
 from typing import Any
 
-from .constants import report_status, user_input, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, user_input, context, log_path  # type: ignore[import-not-found]
 
 
 # DATA PERSISTENCE SUBSYSTEM: FILE INGESTION & PIPELINE INITIALIZATION
@@ -28,7 +28,14 @@ def load_from_file(pipeline_cls: Any, file_path: str) -> Any:
         report_status(
             state="warn",
             message=f"Source file not found: {file_path!r}",
-            log_path=log_path,
+            context=LogContext(
+                component="database.JSONDatabasePipeline",
+                log_path=log_path,
+                silent=False,
+                trace_id="JSONDatabasePipeline",
+                actor=context.get("user"),
+                payload={"file_path": file_path},
+            ),
         )
         choice_schema: list[dict[str, Any]] = [
             {
@@ -47,14 +54,28 @@ def load_from_file(pipeline_cls: Any, file_path: str) -> Any:
             report_status(
                 state="info",
                 message=f"Initializing new pipeline for {file_path!r}",
-                log_path=log_path,
+                context=LogContext(
+                    component="database.JSONDatabasePipeline",
+                    log_path=log_path,
+                    silent=False,
+                    trace_id="JSONDatabasePipeline",
+                    actor=context.get("user"),
+                    payload={"file_path": file_path},
+                ),
             )
             return pipeline_cls.create(file_path=file_path)
         else:
             report_status(
                 state="warn",
                 message="Operation cancelled. Returning empty state.",
-                log_path=log_path,
+                context=LogContext(
+                    component="database.JSONDatabasePipeline",
+                    log_path=log_path,
+                    silent=False,
+                    trace_id="JSONDatabasePipeline",
+                    actor=context.get("user"),
+                    payload={"file_path": file_path},
+                ),
             )
             return pipeline_cls.create()
 
@@ -66,7 +87,14 @@ def load_from_file(pipeline_cls: Any, file_path: str) -> Any:
             report_status(
                 state="info",
                 message=f"Ingested data snapshot: {file_path!r}",
-                log_path=log_path,
+                context=LogContext(
+                    component="database.JSONDatabasePipeline",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="JSONDatabasePipeline",
+                    actor=context.get("user"),
+                    payload={"file_path": file_path},
+                ),
             )
             data = json.load(f)
             return pipeline_cls(data, file_path=file_path)
@@ -76,7 +104,17 @@ def load_from_file(pipeline_cls: Any, file_path: str) -> Any:
     # to initializing a fresh pipeline instance at the target file path.
     except json.JSONDecodeError as e:
         report_status(
-            state="fail", message=f"Source data corrupted: {e}", log_path=log_path
+            state="fail",
+            message=f"Source data corrupted: {e}",
+            context=LogContext(
+                component="database.JSONDatabasePipeline",
+                log_path=log_path,
+                silent=False,
+                trace_id="JSONDatabasePipeline",
+                actor=context.get("user"),
+                exception=str(e),
+                payload={"file_path": file_path},
+            ),
         )
         return pipeline_cls.create(file_path=file_path)
 
@@ -113,7 +151,14 @@ def save_to_file(
         report_status(
             state="fail",
             message="No destination path assigned to pipeline.",
-            log_path=log_path,
+            context=LogContext(
+                component="database.JSONDatabasePipeline",
+                log_path=log_path,
+                silent=False,
+                trace_id="JSONDatabasePipeline",
+                actor=context.get("user"),
+                payload={"current_path": current_path, "file_path": file_path},
+            ),
         )
         return False
 
@@ -132,7 +177,15 @@ def save_to_file(
             report_status(
                 state="fail",
                 message=f"Error rotating backup files: {e}",
-                log_path=log_path,
+                context=LogContext(
+                    component="database.JSONDatabasePipeline",
+                    log_path=log_path,
+                    silent=False,
+                    trace_id="JSONDatabasePipeline",
+                    actor=context.get("user"),
+                    exception=str(e),
+                    payload={"target": target, "max_backups": max_backups},
+                ),
             )
 
     # JSON SERIALIZATION & DISK PERSISTENCE
@@ -146,6 +199,14 @@ def save_to_file(
         report_status(
             state="fail",
             message=f"Error saving to file: {e}",
-            log_path=log_path,
+            context=LogContext(
+                component="database.JSONDatabasePipeline",
+                log_path=log_path,
+                silent=False,
+                trace_id="JSONDatabasePipeline",
+                actor=context.get("user"),
+                exception=str(e),
+                payload={"target": target},
+            ),
         )
         return False

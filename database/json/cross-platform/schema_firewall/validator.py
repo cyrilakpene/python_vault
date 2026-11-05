@@ -1,7 +1,7 @@
 from typing import Any
 
 from .reconciler import is_field_satisfied  # type: ignore[import-not-found]
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # DATA CONTAINER SUBSYSTEM: SCHEMA DELTA FILTER & REDUNDANCY FIREWALL
@@ -29,9 +29,15 @@ def filter_schema_by_keys(
     # for captured keys.
     report_status(
         state="task",
-        message="INITIALIZING SATISFACTION REGISTRY.",
-        log_path=log_path,
-        silent=True,
+        message="Initializing schema satisfaction validation registry.",
+        context=LogContext(
+            component="database.filter_schema_by_keys",
+            log_path=log_path,
+            silent=True,
+            trace_id="filter_schema_by_keys",
+            actor=context.get("user"),
+            payload={"initial_fields_count": len(input_schema)},
+        ),
     )
     captured_keys: set[str] = set()
 
@@ -47,9 +53,15 @@ def filter_schema_by_keys(
     # Logs the calculation phase prior to filtering out satisfied schema fields.
     report_status(
         state="info",
-        message="Calculating schema delta.",
-        log_path=log_path,
-        silent=True,
+        message="Executing schema delta calculation to filter satisfied fields.",
+        context=LogContext(
+            component="database.filter_schema_by_keys",
+            log_path=log_path,
+            silent=True,
+            trace_id="filter_schema_by_keys",
+            actor=context.get("user"),
+            payload={"captured_keys_count": len(captured_keys)},
+        ),
     )
 
     # FIREWALL FILTERING & LIST GENERATION
@@ -62,9 +74,19 @@ def filter_schema_by_keys(
     # Reports a final firewall summary detailing initial field counts versus satisfied entries.
     report_status(
         state="item",
-        message=f"Firewall summary: {len(input_schema)} initial fields | {len(captured_keys)} satisfied.",
-        log_path=log_path,
-        silent=True,
+        message=f"Schema firewall summary: Processed {len(input_schema)} initial fields, {len(captured_keys)} fields satisfied and filtered.",
+        context=LogContext(
+            component="database.filter_schema_by_keys",
+            log_path=log_path,
+            silent=True,
+            trace_id="filter_schema_by_keys",
+            actor=context.get("user"),
+            payload={
+                "initial_fields": len(input_schema),
+                "satisfied_fields": len(captured_keys),
+                "remaining_fields": len(filtered_schema),
+            },
+        ),
     )
 
     return filtered_schema

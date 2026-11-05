@@ -1,5 +1,6 @@
 import os
-from .exceptions import ACLProbeError
+
+from .exceptions import ACLProbeError# type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: EXTENDED ATTRIBUTE ACL VERIFICATION

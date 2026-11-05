@@ -1,7 +1,7 @@
 from .scopes import build_effective_scopes, build_priority_set  # type: ignore[import-not-found]
 from .traversal import find_hardened_binary  # type: ignore[import-not-found]
 from .exceptions import SecurityCircuitBreakerError  # type: ignore[import-not-found]
-from .contants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: ZERO-TRUST BINARY RESOLUTION PIPELINE
@@ -61,7 +61,13 @@ def resolve_hardened_binaries(
     report_status(
         state="done",
         message=f"Registry Emission Complete: {len(resolved_registry)} tools verified.",
-        log_path=log_path,
-        silent=True,
+        context=LogContext(
+            component="security.hardened_binaries",
+            log_path=log_path,
+            silent=True,
+            trace_id="hardened_binaries",
+            actor=context.get("user"),
+            payload={"verified_count": len(resolved_registry), "tools": tools},
+        ),
     )
     return resolved_registry

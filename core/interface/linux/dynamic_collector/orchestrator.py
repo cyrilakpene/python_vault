@@ -3,7 +3,7 @@ from typing import Any, Callable
 from .evaluator import evaluate_rule_conditions  # type: ignore[import-not-found]
 from .path_resolver import inject_path  # type: ignore[import-not-found]
 from .registry import CONDITION_OPERATORS  # type: ignore[import-not-found]
-from .constants import report_status, user_input, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, user_input, context, log_path  # type: ignore[import-not-found]
 
 
 # DATA INGESTION SUBSYSTEM: DYNAMIC POLICY RECONCILIATION & INPUT COLLECTION
@@ -39,23 +39,39 @@ def collect_dynamic_inputs(
     # Reports status for initializing the local logic registry and available operators.
     report_status(
         state="task",
-        message="INITIALIZING LOCAL LOGIC REGISTRY.",
-        log_path=log_path,
-        silent=True,
+        message="Initializing local logic registry.",
+        context=LogContext(
+            component="interface.collect_dynamic_inputs",
+            log_path=log_path,
+            silent=True,
+            trace_id="collect_dynamic_inputs",
+            actor=context.get("user"),
+        ),
     )
 
     report_status(
         state="item",
-        message=f"Registry loaded: {', '.join(CONDITION_OPERATORS.keys())} operators available.",
-        log_path=log_path,
-        silent=True,
+        message=f"Registry loaded: {len(CONDITION_OPERATORS)} operators available.",
+        context=LogContext(
+            component="interface.collect_dynamic_inputs",
+            log_path=log_path,
+            silent=True,
+            trace_id="interface.collect_dynamic_inputs",
+            actor=context.get("user"),
+            payload={"operators": list(CONDITION_OPERATORS.keys())},
+        ),
     )
 
     report_status(
         state="proc",
         message="Executing policy reconciliation...",
-        log_path=log_path,
-        silent=True,
+        context=LogContext(
+            component="interface.interface.collect_dynamic_inputs",
+            log_path=log_path,
+            silent=True,
+            trace_id="collect_dynamic_inputs",
+            actor=context.get("user"),
+        ),
     )
 
     # POLICY SEQUENCE ITERATION LOOP
@@ -66,8 +82,14 @@ def collect_dynamic_inputs(
         report_status(
             state="info",
             message=f"Evaluating rule applicability: {rule_label!r}.",
-            log_path=log_path,
-            silent=True,
+            context=LogContext(
+                component="interface.interface.collect_dynamic_inputs",
+                log_path=log_path,
+                silent=True,
+                trace_id="collect_dynamic_inputs",
+                actor=context.get("user"),
+                payload={"rule_label": rule_label},
+            ),
         )
 
         # RULE APPLICABILITY EVALUATION CHECK
@@ -75,9 +97,15 @@ def collect_dynamic_inputs(
         if not evaluate_rule_conditions(rule, master_dict):
             report_status(
                 state="info",
-                message=f"Evaluation failed: Skipping {rule_label!r}.",
-                log_path=log_path,
-                silent=True,
+                message=f"Evaluation return false. Skipping {rule_label!r}.",
+                context=LogContext(
+                    component="interface.interface.collect_dynamic_inputs",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="collect_dynamic_inputs",
+                    actor=context.get("user"),
+                    payload={"rule_label": rule_label, "skipped": True},
+                ),
             )
             continue
 
@@ -86,8 +114,14 @@ def collect_dynamic_inputs(
         report_status(
             state="info",
             message=f"Engaging deduplication firewall: {rule_label!r}.",
-            log_path=log_path,
-            silent=True,
+            context=LogContext(
+                component="interface.interface.collect_dynamic_inputs",
+                log_path=log_path,
+                silent=True,
+                trace_id="collect_dynamic_inputs",
+                actor=context.get("user"),
+                payload={"rule_label": rule_label},
+            ),
         )
 
         # SCHEMA DEDUPLICATION & FILTERING
@@ -101,8 +135,17 @@ def collect_dynamic_inputs(
             report_status(
                 state="item",
                 message=f"Purgation delta: {original_count} fields -> {len(target_schema)} remaining.",
-                log_path=log_path,
-                silent=True,
+                context=LogContext(
+                    component="interface.interface.collect_dynamic_inputs",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="collect_dynamic_inputs",
+                    actor=context.get("user"),
+                    payload={
+                        "original_count": original_count,
+                        "remaining_count": len(target_schema),
+                    },
+                ),
             )
 
         # IDEMPOTENT COMPLETION CHECK
@@ -111,8 +154,14 @@ def collect_dynamic_inputs(
             report_status(
                 state="item",
                 message=f"Idempotent skip: Master dict already satisfies {rule_label!r}.",
-                log_path=log_path,
-                silent=True,
+                context=LogContext(
+                    component="interface.collect_dynamic_inputs",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="collect_dynamic_inputs",
+                    actor=context.get("user"),
+                    payload={"rule_label": rule_label, "idempotent_skip": True},
+                ),
             )
             continue
 
@@ -121,14 +170,27 @@ def collect_dynamic_inputs(
             report_status(
                 state="info",
                 message=f"Processing logic block: {rule_label!r}.",
-                log_path=log_path,
+                context=LogContext(
+                    component="interface.collect_dynamic_inputs",
+                    log_path=log_path,
+                    silent=False,
+                    trace_id="collect_dynamic_inputs",
+                    actor=context.get("user"),
+                    payload={"rule_label": rule_label},
+                ),
             )
 
         report_status(
             state="info",
             message=f"Input required: Collecting {len(target_schema)} fields for {rule_label!r}.",
-            log_path=log_path,
-            silent=True,
+            context=LogContext(
+                component="interface.collect_dynamic_inputs",
+                log_path=log_path,
+                silent=True,
+                trace_id="collect_dynamic_inputs",
+                actor=context.get("user"),
+                payload={"rule_label": rule_label, "fields_count": len(target_schema)},
+            ),
         )
 
         # FIELD CRITICALITY ASSIGNMENT
@@ -151,16 +213,30 @@ def collect_dynamic_inputs(
                 report_status(
                     state="item",
                     message=f"State transform: {transform_key!r} mapped to {final_val!r}.",
-                    log_path=log_path,
-                    silent=True,
+                    context=LogContext(
+                        component="interface.collect_dynamic_inputs",
+                        log_path=log_path,
+                        silent=True,
+                        trace_id="collect_dynamic_inputs",
+                        actor=context.get("user"),
+                        payload={
+                            "transform_key": transform_key,
+                            "final_val": str(final_val),
+                        },
+                    ),
                 )
                 inject_path(master_dict, transform_key, final_val)
 
         report_status(
             state="info",
             message=f"Synchronizing memory state.",
-            log_path=log_path,
-            silent=True,
+            context=LogContext(
+                component="interface.collect_dynamic_inputs",
+                log_path=log_path,
+                silent=True,
+                trace_id="collect_dynamic_inputs",
+                actor=context.get("user"),
+            ),
         )
 
         # MEMORY STATE SYNCHRONIZATION
@@ -170,20 +246,40 @@ def collect_dynamic_inputs(
         report_status(
             state="item",
             message=f"Memory sync: Integrated {len(new_data)} new keys into master state.",
-            log_path=log_path,
-            silent=True,
+            context=LogContext(
+                component="interface.collect_dynamic_inputs",
+                log_path=log_path,
+                silent=True,
+                trace_id="collect_dynamic_inputs",
+                actor=context.get("user"),
+                payload={"new_keys_count": len(new_data)},
+            ),
         )
 
         report_status(
             state="done",
-            message=f"STEP COMPLETE: {rule_label!r}",
-            log_path=log_path,
-            silent=True,
+            message=f"Step complete: {rule_label!r}",
+            context=LogContext(
+                component="interface.collect_dynamic_inputs",
+                log_path=log_path,
+                silent=True,
+                trace_id="collect_dynamic_inputs",
+                actor=context.get("user"),
+                payload={"rule_label": rule_label},
+            ),
         )
-        return master_dict, "STEP_COMPLETE"
+        return master_dict, "Step_complete"
 
     # ALL POLICIES SATISFIED EXIT
     report_status(
-        state="done", message="ALL POLICIES SATISFIED", log_path=log_path, silent=True
+        state="done",
+        message="All policies satisfied",
+        context=LogContext(
+            component="interface.collect_dynamic_inputs",
+            log_path=log_path,
+            silent=True,
+            trace_id="collect_dynamic_inputs",
+            actor=context.get("user"),
+        ),
     )
-    return master_dict, "ALL_STEPS_COMPLETE"
+    return master_dict, "All_Steps_Complete"

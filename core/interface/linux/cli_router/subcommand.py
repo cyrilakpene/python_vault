@@ -1,8 +1,8 @@
 import argparse
 from typing import Any, Callable
 
-from .constants import report_status, log_path  # type: ignore[import-not-found]
 from .exceptions import CommandDispatchError, HandlerNotFoundError  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # SUBCOMMAND DISPATCH & EXECUTION WRAPPER ENGINE
@@ -32,8 +32,14 @@ def subcommand_runner(
     report_status(
         state="info",
         message=f"Executing subcommand runner for: {sub_cmd_name!r}",
-        silent=True,
-        log_path=log_path,
+        context=LogContext(
+            component="cli.subcommand",
+            log_path=log_path,
+            silent=True,
+            trace_id="cli",
+            actor=context.get("user"),
+            payload={"subcommand": sub_cmd_name},
+        ),
     )
 
     # SUBCOMMAND BASE HANDLER EXECUTION
@@ -41,18 +47,28 @@ def subcommand_runner(
     if "handler" in sub_conf:
         primary_handler = sub_conf["handler"]
         if not callable(primary_handler):
-            raise HandlerNotFoundError(f"Primary handler for subcommand {sub_cmd_name!r} is not callable.")
+            raise HandlerNotFoundError(
+                f"Primary handler for subcommand {sub_cmd_name!r} is not callable."
+            )
 
         report_status(
             state="item",
             message=f"Invoking primary subcommand handler for {sub_cmd_name!r}",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="cli.subcommand",
+                log_path=log_path,
+                silent=True,
+                trace_id="cli",
+                actor=context.get("user"),
+                payload={"subcommand": sub_cmd_name},
+            ),
         )
         try:
             primary_handler(args)
         except Exception as err:
-            raise CommandDispatchError(f"Error during primary handler execution for subcommand {sub_cmd_name!r}: {err}") from err
+            raise CommandDispatchError(
+                f"Error during primary handler execution for subcommand {sub_cmd_name!r}: {err}"
+            ) from err
 
     # NESTED FLAG HANDLER DISPATCH LOOP
     # Iterates over child flag handlers registered within the sub-router dispatch map.
@@ -69,10 +85,18 @@ def subcommand_runner(
             report_status(
                 state="item",
                 message=f"Invoking sub-argument handler for key: {key!r} (value={val})",
-                silent=True,
-                log_path=log_path,
+                context=LogContext(
+                    component="cli.subcommand",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="cli",
+                    actor=context.get("user"),
+                    payload={"argument": key, "value": str(val)},
+                ),
             )
             try:
                 h(args)
             except Exception as err:
-                raise CommandDispatchError(f"Error during sub-argument handler execution for key {key!r}: {err}") from err
+                raise CommandDispatchError(
+                    f"Error during sub-argument handler execution for key {key!r}: {err}"
+                ) from err

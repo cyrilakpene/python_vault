@@ -1,7 +1,7 @@
 import signal
 from typing import Callable, Iterable
 
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: SIGNAL HANDLER REGISTRATION & BINDING
@@ -32,6 +32,13 @@ def register_signal_handlers(
             report_status(
                 state="warn",
                 message=f"Could not register signal handler for {sig}: {err}",
-                silent=True,
-                log_path=log_path,
+                context=LogContext(
+                    component="security.shutdown",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="shutdown",
+                    actor=context.get("user"),
+                    exception=str(err),
+                    payload={"signal": sig},
+                ),
             )

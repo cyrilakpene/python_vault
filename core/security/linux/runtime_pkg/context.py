@@ -1,8 +1,8 @@
 from typing import Any
 
-from .identity import resolve_user_identity
-from .lifecycle import resolve_session_path, rotate_logs
-from .security import audit_security_context
+from .identity import resolve_user_identity  # type: ignore[import-not-found]
+from .lifecycle import resolve_session_path, rotate_logs  # type: ignore[import-not-found]
+from .security import audit_security_context  # type: ignore[import-not-found]
 
 
 # SYSTEM IDENTITY & GOVERNANCE INFRASTRUCTURE

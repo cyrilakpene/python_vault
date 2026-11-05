@@ -2,7 +2,7 @@ import re
 import sys
 from typing import Any, cast
 
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: SUPPRESSION PATTERN COMPILATION
@@ -121,9 +121,18 @@ def filter_and_write_line(
                 sys.stdout.write("\r\n")
                 report_status(
                     state="info",
-                    message="Suppressed sensitive PTY output block matching security pattern.",
-                    silent=True,
-                    log_path=log_path,
+                    message="Suppression filter triggered: PTY output block matched security range boundary.",
+                    context=LogContext(
+                        component="security.executor",
+                        log_path=log_path,
+                        silent=True,
+                        trace_id="executor",
+                        actor=context.get("user"),
+                        payload={
+                            "suppression_type": "range_block",
+                            "range_index": i,
+                        },
+                    ),
                 )
                 return
 
@@ -134,9 +143,18 @@ def filter_and_write_line(
             sys.stdout.write("\r\n")
             report_status(
                 state="info",
-                message="Suppressed sensitive PTY output line matching security pattern.",
-                silent=True,
-                log_path=log_path,
+                message="Suppression filter triggered: PTY output line matched security pattern.",
+                context=LogContext(
+                    component="security.executor",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="executor",
+                    actor=context.get("user"),
+                    payload={
+                        "suppression_type": "pattern_line",
+                        "pattern": pattern.pattern,
+                    },
+                ),
             )
             return
 

@@ -2,7 +2,7 @@ import signal
 import sys
 from typing import Callable
 
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: SIGNAL INTERCEPTION & GRACEFUL SHUTDOWN HANDLER
@@ -36,8 +36,14 @@ def intercept_signal(
     report_status(
         state="warn",
         message=f"Received signal {signal_name} ({signum}). Initiating graceful shutdown...",
-        silent=True,
-        log_path=log_path,
+        context=LogContext(
+            component="security.shutdown",
+            log_path=log_path,
+            silent=True,
+            trace_id="shutdown",
+            actor=context.get("user"),
+            payload={"signal_name": signal_name, "signum": signum},
+        ),
     )
 
     # DUPLICATE EXECUTION GUARD & CLEANUP EXECUTION
@@ -51,8 +57,15 @@ def intercept_signal(
             report_status(
                 state="warn",
                 message=f"Error during shutdown callback: {err}",
-                silent=True,
-                log_path=log_path,
+                context=LogContext(
+                    component="security.shutdown",
+                    log_path=log_path,
+                    silent=True,
+                    trace_id="shutdown",
+                    actor=context.get("user"),
+                    exception=str(err),
+                    payload={"signal_name": signal_name, "signum": signum},
+                ),
             )
         finally:
             # PROCESS TERMINATION

@@ -10,7 +10,7 @@ from .exceptions import (
     PathResolutionError,  # type: ignore[import-not-found]
     UserCancelError,  # type: ignore[import-not-found]
 )
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # ARCHITECTURAL GATEKEEPER: HARDENED SUBPROCESS EXECUTION SANDBOX
@@ -72,8 +72,20 @@ def run_secure_cmd(
     except subprocess.TimeoutExpired as e:
         report_status(
             state="warn",
-            message=f"Command killed after {e.timeout}s -> {shlex.join(e.cmd)}",
-            log_path=log_path,
+            message=f"Execution timeout: Command terminated after {e.timeout}s -> {shlex.join(e.cmd)}",
+            context=LogContext(
+                component="security.executor",
+                log_path=log_path,
+                silent=False,
+                trace_id="executor",
+                actor=context.get("user"),
+                exception=str(e),
+                payload={
+                    "error_type": "TimeoutExpired",
+                    "timeout_seconds": e.timeout,
+                    "command": shlex.join(e.cmd),
+                },
+            ),
         )
         raise CommandTimeoutError(timeout=e.timeout, cmd=e.cmd) from e
 
@@ -83,8 +95,20 @@ def run_secure_cmd(
     except subprocess.CalledProcessError as e:
         report_status(
             state="warn",
-            message=f"(Exit {e.returncode}): {shlex.join(e.cmd)}",
-            log_path=log_path,
+            message=f"Command execution failed with exit code {e.returncode} -> {shlex.join(e.cmd)}",
+            context=LogContext(
+                component="security.executor",
+                log_path=log_path,
+                silent=False,
+                trace_id="executor",
+                actor=context.get("user"),
+                exception=str(e),
+                payload={
+                    "error_type": "CalledProcessError",
+                    "returncode": e.returncode,
+                    "command": shlex.join(e.cmd),
+                },
+            ),
         )
         raise CommandFailedError(returncode=e.returncode, cmd=e.cmd) from e
 
@@ -94,8 +118,19 @@ def run_secure_cmd(
     except FileNotFoundError as e:
         report_status(
             state="warn",
-            message=f"File not found: {e.filename}",
-            log_path=log_path,
+            message=f"Path resolution error: Required file or binary not found -> {e.filename}",
+            context=LogContext(
+                component="security.executor",
+                log_path=log_path,
+                silent=False,
+                trace_id="executor",
+                actor=context.get("user"),
+                exception=str(e),
+                payload={
+                    "error_type": "FileNotFoundError",
+                    "filename": str(e.filename),
+                },
+            ),
         )
         raise PathResolutionError(filename=str(e.filename)) from e
 
@@ -107,6 +142,17 @@ def run_secure_cmd(
         report_status(
             state="warn",
             message=str(UserCancelError()),
-            log_path=log_path,
+            context=LogContext(
+                component="security.executor",
+                log_path=log_path,
+                silent=False,
+                trace_id="executor",
+                actor=context.get("user"),
+                exception=str(UserCancelError()),
+                payload={
+                    "error_type": "KeyboardInterrupt",
+                    "reason": "user_interrupted_process",
+                },
+            ),
         )
         raise UserCancelError from None

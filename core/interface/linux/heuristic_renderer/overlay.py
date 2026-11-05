@@ -4,7 +4,8 @@ from typing import Callable
 
 from .models import OverlayConfig  # type: ignore[import-not-found]
 from .frame import capture_and_extract_lines, handle_overlay_lifecycle  # type: ignore[import-not-found]
-from .compositor import draw_box, draw_text  # Integrated from compositor_2
+from .compositor import draw_box, draw_text  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # TRANSIENT 2D OVERLAY COMPOSITOR LAYER
@@ -39,6 +40,22 @@ def display_transient_overlay(
     # OVERLAY CONFIGURATION INITIALIZATION
     # Fallbacks to default overlay configuration parameters if none are explicitly provided.
     cfg = config or OverlayConfig()
+
+    report_status(
+        state="info",
+        message="Initializing transient overlay display session.",
+        context=LogContext(
+            component="interface.heuristic_grid_renderer",
+            log_path=log_path,
+            silent=True,
+            trace_id="heuristic_grid_renderer",
+            actor=context.get("user"),
+            payload={
+                "has_callback": callback is not None,
+                "has_border": border_style is not None,
+            },
+        ),
+    )
 
     # CONTENT EXTRACTION & CAPTURE
     # Intercepts stdout execution streams or filters provided lines based on pattern and boundary rules.
@@ -110,4 +127,17 @@ def display_transient_overlay(
         canvas_w=canvas_w,
         default_prompt=default_prompt_line,
         cfg=cfg,
+    )
+
+    report_status(
+        state="done",
+        message="Transient overlay session completed and wiped.",
+        context=LogContext(
+            component="interface.heuristic_renderer",
+            log_path=log_path,
+            silent=True,
+            trace_id="heuristic_grid_renderer",
+            actor=context.get("user"),
+            payload={"lines_rendered_count": len(lines)},
+        ),
     )

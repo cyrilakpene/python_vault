@@ -1,6 +1,6 @@
 from typing import Any, Callable
 
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # OPTION PREPROCESSING & MENU INGRESS ENGINE
@@ -39,8 +39,14 @@ def preprocess_options(
         report_status(
             state="warn",
             message=f"Ingress aborted: Null-set detected for {title!r}.",
-            silent=True,
-            log_path=log_path,
+            context=LogContext(
+                component="interface.menu_controller",
+                log_path=log_path,
+                silent=True,
+                trace_id="menu_controller",
+                actor=context.get("user"),
+                payload={"title": title},
+            ),
         )
         return {}, [], "", False
 

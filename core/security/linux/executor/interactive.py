@@ -13,7 +13,7 @@ from .environment import build_safe_environment  # type: ignore[import-not-found
 from .accumulator import TextAccumulator  # type: ignore[import-not-found]
 from .manager import managed_pty_terminal  # type: ignore[import-not-found]
 from .handlers import handle_process_cleanup, handle_execution_exceptions  # type: ignore[import-not-found]
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # SYSTEM UTILITIES SUBSYSTEM: INTERACTIVE SUBPROCESS SPAWNING
@@ -221,8 +221,19 @@ def run_interactive_cmd(
             if exit_code != 0:
                 report_status(
                     state="warn",
-                    message=f"(Exit {exit_code}): {shlex.join(cmd)}",
-                    log_path=log_path,
+                    message=f"Interactive process execution failed with exit code {exit_code} -> {shlex.join(cmd)}",
+                    context=LogContext(
+                        component="security.executor",
+                        log_path=log_path,
+                        silent=False,
+                        trace_id="executor",
+                        actor=context.get("user"),
+                        payload={
+                            "error_type": "InteractiveCommandFailed",
+                            "returncode": exit_code,
+                            "command": shlex.join(cmd),
+                        },
+                    ),
                 )
                 raise subprocess.CalledProcessError(returncode=exit_code, cmd=cmd)
 

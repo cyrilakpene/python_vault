@@ -4,7 +4,7 @@ from typing import Any, Callable, Literal, cast
 
 from .sanitizer import clean_data, sanitize  # type: ignore[import-not-found]
 from .renderer import render_flat, render_dashboard  # type: ignore[import-not-found]
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # DATA CONTAINER SUBSYSTEM: PATH-BASED DATA RETRIEVAL & DYNAMIC QUERY ENGINE
@@ -101,7 +101,11 @@ def get_data(data: Any, path: str) -> Any | None:
 # in flat key-value formats, raw JSON schemas, or customized dashboard layouts with dynamic symmetry.
 # [>] EXECUTING CLI PATH INSPECTION & RENDERING
 def print_path(
-    data: Any, path: str, view: Literal["flat", "json"] | dict[str, str] = "flat"
+    data: Any,
+    path: str,
+    view: (
+        Literal["flat", "json"] | dict[str, str] | Callable[[Any, list[str], str], None]
+    ) = "flat",
 ) -> None:
     """
     High-level CLI inspector with dynamic width framing.
@@ -109,7 +113,8 @@ def print_path(
     Args:
         data (Any): The data structure to inspect.
         path (str): Dot-notated string targeting specific nodes within the internal state.
-        view (Literal["flat", "json"] | dict[str, str], optional): Output format control. Defaults to "flat".
+        view (Literal["flat", "json"] | dict[str, str] | Callable[[Any, list[str], str], None], optional):
+            Output format control, view configuration schema, or a custom render callable. Defaults to "flat".
     """
     # DATA ACQUISITION & PATH TARGETING
     # Retrieves the target node using path resolution, reporting a failure status and returning early
@@ -120,7 +125,14 @@ def print_path(
         report_status(
             state="fail",
             message=f"Path {path!r} not found in the current state.",
-            log_path=log_path,
+            context=LogContext(
+                component="database.JSONDatabasePipeline",
+                log_path=log_path,
+                silent=False,
+                trace_id="JSONDatabasePipeline",
+                actor=context.get("user"),
+                payload={"path": path},
+            ),
         )
         return
 
@@ -129,8 +141,15 @@ def print_path(
     target: Any = clean_data(raw_target)
     report_status(
         state="info",
-        message=f"Inspecting path {path!r} with view mode {view!r}.",
-        log_path=log_path,
+        message=f"Inspecting path {path!r}.",
+        context=LogContext(
+            component="database.JSONDatabasePipeline",
+            log_path=log_path,
+            silent=True,
+            trace_id="JSONDatabasePipeline",
+            actor=context.get("user"),
+            payload={"path": path},
+        ),
     )
 
     # RAW JSON STRUCTURAL VIEW MODE (THE ARCHITECT'S VIEW)
@@ -141,32 +160,51 @@ def print_path(
 
     buffer: list[str] = []
 
-    # DICTIONARY DISPATCH REGISTRY (LAMBDA WRAPPED FOR DEFERRED EXECUTION)
-    # Maps view identifiers to their respective rendering strategy callables,
-    # ensuring target and buffer arguments are passed dynamically at execution time.
-    view_dispatch: dict[str, Callable[[Any, list[str]], None]] = {
-        "flat": lambda t, b: render_flat(t, b),
+    # RENDERER DISPATCH REGISTRY (DICTIONARY LOOKUP)
+    # Maps format identifiers to their respective built-in rendering strategies (flat path tracer and tabular dashboard).
+    renderer_registry: dict[str, Callable[[Any, list[str], str], None]] = {
+        "flat": lambda t, b, p: render_flat(t, b),
+        "dashboard": lambda t, b, p: render_dashboard(
+            t,
+            b,
+            (
+                cast(dict[str, str], view)
+                if isinstance(view, dict)
+                else cast(dict[str, str], {})
+            ),
+            p,
+        ),
     }
 
-    # VIEW STRATEGY RESOLUTION & EXECUTION
-    # Dispatches rendering to either the flat path tracer or the custom dashboard layout engine
-    # based on the specified view parameter type.
-    if isinstance(view, str):
-        handler = view_dispatch.get(view)
-        if handler:
-            handler(target, buffer)
+    # STRATEGY RESOLUTION VIA DICTIONARY LOOKUP & TYPE DISPATCH
+    # Resolves the appropriate rendering callable based on whether view is a custom callable, a string key, or a contract dictionary.
+    if callable(view):
+        renderer = view
+    elif isinstance(view, str):
+        # Dictionary lookup for string identifiers with fallback to flat rendering strategy
+        renderer = renderer_registry.get(view, renderer_registry["flat"])
+    elif type(view) is dict:
+        # Dashboard dictionary schema contract mapping utilizing the dashboard renderer
+        renderer = renderer_registry["dashboard"]
     else:
-        render_dashboard(target, buffer, view, path)
+        # Default fallback rendering strategy
+        renderer = renderer_registry["flat"]
+
+    # EXECUTE DELEGATED RENDERER
+    renderer(target, buffer, path)
 
     # DYNAMIC SYMMETRY ENGINE & HORIZONTAL FRAMING
     # Computes maximum line width across rendered buffer items and prints a symmetrically framed
-    # terminal output block bounded by horizontal separator rules.
+    # terminal output block bounded by horizontal separator rules, perfectly offset with 4-space indentation.
     if buffer:
-        actual_width: int = max(len(line) for line in buffer)
-        print("-" * actual_width)
+        # Find the maximum total length of the buffer lines (which include the 4-space prefix)
+        max_total_len: int = max(len(line) for line in buffer)
+        content_width: int = max_total_len - 4
+
+        print(f"    {'-' * content_width}")
         for line in buffer:
             print(line)
-        print("-" * actual_width)
+        print(f"    {'-' * content_width}")
 
 
 # DATA CONTAINER SUBSYSTEM: EXPLORATION API & DATA ARCHITECTURE DISCOVERY

@@ -1,10 +1,10 @@
 from typing import Any, cast
 
 from .sanitizer import sanitize, resolve_branch  # type: ignore[import-not-found]
-from .constants import report_status, log_path  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
-# DATA CONTAINER SUBSYSTEM: PATH-BASED DATA MUTATION & DYNAMIC BRANCH INGESTION
+# DATA CONTAINER SUBSYSTEM: PATH-BASED DATA MUTATION & DYNAMIC BRANCH INGRESTION
 # This utility updates or inserts values at specified tokenized paths within nested data structures,
 # supporting dynamic branch auto-creation, list padding, type safety checks, and failure reporting.
 # [>] EXECUTING PATH-BASED DATA MUTATION
@@ -63,7 +63,14 @@ def set_data(
                 report_status(
                     state="warn",
                     message=f"Path breach at '{'.'.join(keys[:i + 1])}'",
-                    log_path=log_path,
+                    context=LogContext(
+                        component="database.JSONDatabasePipeline",
+                        log_path=log_path,
+                        silent=False,
+                        trace_id="JSONDatabasePipeline",
+                        actor=context.get("user"),
+                        payload={"path": path, "breach_key": ".".join(keys[: i + 1])},
+                    ),
                 )
                 return False
 
@@ -83,7 +90,14 @@ def set_data(
             report_status(
                 state="warn",
                 message=f"Type conflict: Node {key!r} is a primitive.",
-                log_path=log_path,
+                context=LogContext(
+                    component="database.JSONDatabasePipeline",
+                    log_path=log_path,
+                    silent=False,
+                    trace_id="JSONDatabasePipeline",
+                    actor=context.get("user"),
+                    payload={"path": path, "node_key": key},
+                ),
             )
             return False
 
@@ -154,7 +168,14 @@ def append_data(
     report_status(
         state="warn",
         message=f"Path {path!r} is not a list.",
-        log_path=log_path,
+        context=LogContext(
+            component="database.JSONDatabasePipeline",
+            log_path=log_path,
+            silent=False,
+            trace_id="JSONDatabasePipeline",
+            actor=context.get("user"),
+            payload={"path": path},
+        ),
     )
     return False
 
@@ -190,7 +211,14 @@ def ingest_schema(
         report_status(
             state="fail",
             message="INGESTION FAILURE: 'Inputs' must be a non-empty dictionary.",
-            log_path=log_path,
+            context=LogContext(
+                component="database.JSONDatabasePipeline",
+                log_path=log_path,
+                silent=False,
+                trace_id="JSONDatabasePipeline",
+                actor=context.get("user"),
+                payload={"custom_key": custom_key},
+            ),
         )
         return False
 
@@ -212,7 +240,15 @@ def ingest_schema(
             report_status(
                 state="fail",
                 message=f"Schema ingestion failed due to missing template key: {e}",
-                log_path=log_path,
+                context=LogContext(
+                    component="database.JSONDatabasePipeline",
+                    log_path=log_path,
+                    silent=False,
+                    trace_id="JSONDatabasePipeline",
+                    actor=context.get("user"),
+                    exception=str(e),
+                    payload={"custom_key": custom_key},
+                ),
             )
             final_key = "generated_identity"
 

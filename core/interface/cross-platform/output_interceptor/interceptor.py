@@ -4,6 +4,7 @@ from typing import Callable, Iterable, TextIO
 
 from .matcher import intercept_line  # type: ignore[import-not-found]
 from .renderer import render_stream_lines  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
 
 # SYSTEM INTERCEPT STRATEGY & STREAM DIRECTION CONTROLLER
@@ -21,6 +22,7 @@ class OutputInterceptor:
     # STREAM FILTERING SUBSYSTEM: FILTER INITIALIZATION
     # This initializer sets up the stream suppression filter by compiling the target regex pattern,
     # establishing the formatting template or replacement callable, and configuring the output text stream.
+    # [>] EXECUTING INTERCEPTOR INITIALIZATION
     def __init__(
         self,
         pattern: str,
@@ -48,6 +50,23 @@ class OutputInterceptor:
         # OUTPUT STREAM CONFIGURATION
         # Bind the target output text stream for filtered data dispatch.
         self.stream = stream
+
+        # INTERCEPTOR INITIALIZATION REPORT
+        # Reports the successful initialization of the output interceptor stream filter.
+        report_status(
+            state="info",
+            message=f"Initializing OutputInterceptor with pattern.",
+            context=LogContext(
+                component="interface.interceptor",
+                log_path=log_path,
+                silent=True,
+                trace_id="interceptor",
+                actor=context.get("user"),
+                payload={
+                    "pattern": pattern,
+                },
+            ),
+        )
 
     # STREAM FILTERING SUBSYSTEM: LINE INTERCEPTION & TRANSFORMATION
     # This method intercepts incoming text lines, matching against compiled regular expression patterns
