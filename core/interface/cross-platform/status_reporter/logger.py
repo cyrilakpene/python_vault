@@ -1,3 +1,4 @@
+import os
 import json
 from typing import Any
 from datetime import datetime
@@ -23,12 +24,21 @@ def _format_legacy_log(
     Returns:
         str: A formatted plain text log string terminated with a newline character.
     """
+    # MESSAGE VALIDATION
+    # Safely converts message to string, treating None as an empty string.
+    safe_message = str(message or "")
+
     # LEGACY LOG LINE CONSTRUCTION
     # Formats and returns the timestamp, symbol, and message into a standardized plain text log line.
     if include_timestamp:
-        return f"[{ts}] {log_symbol} {message}\n"
+        if log_symbol:
+            return f"[{ts}] {log_symbol} {safe_message}\n"
+        return f"[{ts}] {safe_message}\n"
 
-    return f"{message}\n"
+    if log_symbol:
+        return f"{log_symbol} {safe_message}\n"
+
+    return f"{safe_message}\n"
 
 
 # LOGGING SUBSYSTEM: STRUCTURED JSON LOG RECORD BUILDER
@@ -153,6 +163,12 @@ def commit_log(
     # Verifies that a valid log path target is provided before attempting file I/O operations.
     if log_path:
         try:
+            # DIRECTORY AUTO-CREATION GUARD
+            # Ensures parent directories exist prior to opening the target log file to prevent FileNotFoundError.
+            log_dir = os.path.dirname(os.path.abspath(log_path))
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
+
             # SYMBOL CLEANING & SEVERITY RESOLUTION
             # Cleans the log symbol and resolves it to a standardized enterprise severity level via the central map.
             clean_symbol = log_symbol.strip("[] ").strip()
@@ -175,7 +191,7 @@ def commit_log(
             else:
                 log_line = _format_structured_log(
                     severity=severity,
-                    component=component,
+                    component=component or "core",
                     message=message,
                     trace_id=trace_id,
                     span_id=span_id,

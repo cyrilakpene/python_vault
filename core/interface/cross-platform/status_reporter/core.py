@@ -12,8 +12,8 @@ from .constants import StatusState  # type: ignore[import-not-found]
 # frequency throttling, session logging, smart stream routing, and runtime cache hygiene.
 # [>] EXECUTING STATUS REPORTING & ORCHESTRATION
 def report_status(
-    state: StatusState,
-    message: str,
+    state: StatusState | None,
+    message: str | None,
     context: LogContext | None = None,
     **kwargs: Any,
 ) -> None:
@@ -30,7 +30,7 @@ def report_status(
     # CONTEXT INITIALIZATION
     # Instantiates a default LogContext if none is provided.
     if context is None:
-        context = LogContext(component="core")
+        context = LogContext()
 
     # PAYLOAD MERGE & RESOLUTION
     # Combines context-level payload attributes with any additional runtime keyword arguments.
@@ -47,13 +47,17 @@ def report_status(
     # and log representation icons.
     normalized_state, display_symbol, log_symbol = resolve_symbols(state)
 
+    # SAFE MESSAGE RESOLUTION
+    # Ensures message is treated as a string or empty string if None, preventing literal "None" logging.
+    resolved_message = str(message) if message is not None else ""
+
     # FILESYSTEM PERSISTENCE
     # Commits formatted log entries (structured or legacy) with metadata payload, trace context, and severity gates.
     commit_log(
         log_path=context.log_path,
         log_symbol=log_symbol,
-        message=message,
-        component=context.component,
+        message=resolved_message,
+        component=str(context.component) if context.component else "core",
         log_format=context.log_format,
         payload=payload if payload else None,
         trace_id=context.trace_id,
@@ -75,6 +79,7 @@ def report_status(
         stream=context.stream,
         is_verbose=context.is_verbose,
         silent=context.silent,
+        suppressed=context.suppressed,
     )
 
     # CACHE CLEANUP FOR TERMINAL STATES

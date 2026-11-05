@@ -14,7 +14,7 @@ class LogContext:
     for status reporting and structured session logging.
 
     Attributes:
-        component (str): Module or application subsystem name emitting the log.
+        component (str | None): Module or application subsystem name emitting the log. Default to "core".
         log_format (LogFormat): Output format mode for session logs ("structured" or "legacy"). Defaults to "structured".
         stream (TextIO | None): Optional custom text stream output target (defaults to stdout/stderr). Defaults to None.
         log_path (str | None): Optional file path string for background session log persistence. Defaults to None.
@@ -29,10 +29,11 @@ class LogContext:
         elapsed_ms (float | int | None): Optional execution time elapsed in milliseconds. Defaults to None.
         exception (str | None): Optional exception message or error description string. Defaults to None.
         include_timestamp (bool): If True, passes real-time timestamp to the logger. Default to True.
+        suppressed (bool): Boolean flag suppressing terminal output printing. Defaults to False.
         payload (dict[str, Any]): Rich key-value telemetry payload attributes to record in structured log records.
     """
 
-    component: str
+    component: str | None = "core"
     log_format: LogFormat = "structured"
     stream: TextIO | None = None
     log_path: str | None = None
@@ -47,4 +48,5 @@ class LogContext:
     elapsed_ms: float | int | None = None
     exception: str | None = None
     include_timestamp: bool = True
+    suppressed: bool = False
     payload: dict[str, Any] = field(default_factory=dict[str, Any])
