@@ -1,9 +1,102 @@
 import os
 import json
-from typing import Any
+from typing import Any, Callable
 from datetime import datetime
 
 from .constants import LogFormat, SEVERITY_LEVELS, SEVERITY_MAP  # type: ignore[import-not-found]
+
+
+# LOG FORMATTING SUBSYSTEM: LEGACY LOG FORMATTER
+# This utility maps legacy log parameters to their respective formatting callables,
+# facilitating extensible O(1) format routing and legacy log string construction.
+# [>] EXECUTING LEGACY LOG FORMATTING
+def _legacy_formatter(
+    ts: str,
+    log_symbol: str,
+    message: str,
+    include_timestamp: bool,
+    **kwargs: Any,
+) -> str:
+    """
+    Formats a legacy log entry using a typed callable signature and optional keyword parameters.
+
+    Args:
+        ts (str): The timestamp string for the log entry.
+        log_symbol (str): The symbol or severity indicator representing the log level.
+        message (str): The primary log message text.
+        include_timestamp (bool): A flag indicating whether to include the timestamp in the formatted output.
+        **kwargs (Any): Additional flexible keyword arguments for extended formatting compatibility.
+
+    Returns:
+        str: The fully formatted legacy log entry string.
+    """
+    # LEGACY LOG FORMAT ROUTING
+    # Delegates formatting to the core legacy log builder using the provided parameters.
+    return _format_legacy_log(ts, log_symbol, message, include_timestamp)
+
+
+# LOG FORMATTING SUBSYSTEM: STRUCTURED LOG FORMATTER
+# This utility processes typed log parameters, diagnostic identifiers, performance metrics,
+# and structured payloads to format comprehensive, machine-parsable JSON or structured log entries.
+# [>] EXECUTING STRUCTURED LOG FORMATTING
+def _structured_formatter(
+    _ts: str,
+    _log_symbol: str,
+    message: str,
+    _include_timestamp: bool,
+    severity: str,
+    component: str,
+    trace_id: str | None = None,
+    span_id: str | None = None,
+    actor: str | None = None,
+    elapsed_ms: float | int | None = None,
+    steped: int | None = None,
+    exception: str | None = None,
+    payload: dict[str, Any] | None = None,
+    **kwargs: Any,
+) -> str:
+    """
+    Formats a structured log entry incorporating severity, component origin, tracing metadata, and payload data.
+
+    Args:
+        _ts (str): The timestamp string (ignored or handled by underlying structured formatter).
+        _log_symbol (str): The symbol or severity indicator (subsumed by explicit severity parameter).
+        message (str): The primary log message text describing the event.
+        _include_timestamp (bool): Flag indicating whether timestamp inclusion is requested.
+        severity (str): The severity level of the log entry (e.g., INFO, ERROR, DEBUG).
+        component (str): The architectural component or module emitting the log.
+        trace_id (str | None): Optional distributed tracing identifier for request correlation.
+        span_id (str | None): Optional tracing span identifier for execution scope.
+        actor (str | None): Optional identifier of the user or system entity triggering the action.
+        elapsed_ms (float | int | None): Optional execution time elapsed in milliseconds.
+        steped (int | None): Optional discrete step counter for modulo-based frequency throttling.
+        exception (str | None): Optional serialized exception traceback or error summary.
+        payload (dict[str, Any] | None): Optional dictionary containing structured contextual data.
+        **kwargs (Any): Additional flexible keyword arguments for extended format compatibility.
+
+    Returns:
+        str: The fully formatted structured log entry string.
+    """
+    # STRUCTURED LOG FORMAT ROUTING
+    # Delegates formatting to the core structured log builder using the provided metadata and telemetry parameters.
+    return _format_structured_log(
+        severity=severity,
+        component=component,
+        message=message,
+        trace_id=trace_id,
+        span_id=span_id,
+        actor=actor,
+        elapsed_ms=elapsed_ms,
+        steped=steped,
+        exception=exception,
+        payload=payload,
+    )
+
+
+LOG_FORMATTER_MAP: dict[str, Callable[..., str]] = {
+    "legacy": _legacy_formatter,
+    "structured": _structured_formatter,
+}
 
 
 # LOGGING SUBSYSTEM: LEGACY LOG FORMATTING
@@ -53,6 +146,7 @@ def _format_structured_log(
     span_id: str | None = None,
     actor: str | None = None,
     elapsed_ms: float | int | None = None,
+    steped: int | None = None,
     exception: str | None = None,
     payload: dict[str, Any] | None = None,
 ) -> str:
@@ -102,6 +196,11 @@ def _format_structured_log(
     if elapsed_ms is not None:
         log_entry["elapsed_ms"] = elapsed_ms
 
+    # ELAPSED DURATION INCLUSION
+    # Conditionally appends performance execution steps if provided.
+    if steped is not None:
+        log_entry["steped"] = steped
+
     # EXCEPTION METADATA INCLUSION
     # Conditionally appends error or exception details if provided.
     if exception:
@@ -117,7 +216,7 @@ def _format_structured_log(
     return json.dumps(log_entry) + "\n"
 
 
-# LOGGING SUBSYSTEM: BACKGROUND SESSION LOG COMMMIT & SEVERITY GATE
+# LOGGING SUBSYSTEM: BACKGROUND SESSION LOG COMMIT & SEVERITY GATE
 # This utility manages background session logging by enforcing severity threshold gates,
 # mapping status symbols to enterprise severity levels, handling trace contexts, and writing dual-mode formats safely.
 # [>] EXECUTING LOG COMMIT
@@ -132,6 +231,7 @@ def commit_log(
     span_id: str | None = None,
     actor: str | None = None,
     elapsed_ms: float | int | None = None,
+    steped: int | None = None,
     exception: str | None = None,
     min_severity: str = "INFO",
     include_timestamp: bool = True,
@@ -154,7 +254,6 @@ def commit_log(
         exception (str | None): Optional exception message or error description string. Defaults to None.
         min_severity (str): Minimum threshold level required to commit a log record. Defaults to "INFO".
         include_timestamp (bool): If True, passes real-time timestamp to the logger. Default to True.
-
 
     Returns:
         None: This function executes side effects by writing logs and does not return a value.
@@ -181,25 +280,27 @@ def commit_log(
             if current_rank < threshold_rank:
                 return
 
-            # LOG STRING CONSTRUCTION
-            # Generates the current timestamp and formats the log line using legacy or structured formatters.
+            # LOG STRING CONSTRUCTION VIA DICTIONARY LOOKUP
+            # Generates the current timestamp and resolves the appropriate formatting function from the dispatcher map.
             ts = datetime.now().strftime("%H:%M:%S")
-            if log_format == "legacy":
-                log_line = _format_legacy_log(
-                    ts, log_symbol, message, include_timestamp
-                )
-            else:
-                log_line = _format_structured_log(
-                    severity=severity,
-                    component=component or "core",
-                    message=message,
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    actor=actor,
-                    elapsed_ms=elapsed_ms,
-                    exception=exception,
-                    payload=payload,
-                )
+            formatter = LOG_FORMATTER_MAP.get(
+                log_format, LOG_FORMATTER_MAP["structured"]
+            )
+            log_line = formatter(
+                ts=ts,
+                log_symbol=log_symbol,
+                message=message,
+                include_timestamp=include_timestamp,
+                severity=severity,
+                component=component or "core",
+                trace_id=trace_id,
+                span_id=span_id,
+                actor=actor,
+                elapsed_ms=elapsed_ms,
+                steped=steped,
+                exception=exception,
+                payload=payload,
+            )
 
             # SAFE FILE APPEND WITH UTF-8 ENCODING
             # Opens the log file in append mode and writes the formatted log entry securely.

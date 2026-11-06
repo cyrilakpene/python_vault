@@ -64,6 +64,7 @@ def report_status(
         span_id=context.span_id,
         actor=context.actor,
         elapsed_ms=context.elapsed_ms,
+        steped=context.steped,
         exception=context.exception,
         min_severity=context.min_severity,
         include_timestamp=context.include_timestamp,

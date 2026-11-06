@@ -27,6 +27,7 @@ class LogContext:
         actor (str | None): Optional user or process identity string for auditing. Defaults to None.
         min_severity (str): Minimum threshold level required to commit a log record. Defaults to "INFO".
         elapsed_ms (float | int | None): Optional execution time elapsed in milliseconds. Defaults to None.
+        steped (int | None): Optional discrete step counter for modulo-based frequency throttling.
         exception (str | None): Optional exception message or error description string. Defaults to None.
         include_timestamp (bool): If True, passes real-time timestamp to the logger. Default to True.
         suppressed (bool): Boolean flag suppressing terminal output printing. Defaults to False.
@@ -46,6 +47,7 @@ class LogContext:
     actor: str | None = None
     min_severity: str = "INFO"
     elapsed_ms: float | int | None = None
+    steped: int | None = None
     exception: str | None = None
     include_timestamp: bool = True
     suppressed: bool = False
