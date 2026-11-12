@@ -38,7 +38,7 @@ def evaluate_throttle(
     # STEP-BASED THROTTLE: DISCRETE MILESTONE EVALUATION
     # Evaluates modulo-based milestone intervals if an explicit step counter is provided.
     if step is not None:
-        interval = int(is_loop)
+        interval = int(is_loop) if int(is_loop) > 0 else 1
         is_due = (step == 0) or (step % interval == 0)
 
         if not is_due and not is_terminal_state:

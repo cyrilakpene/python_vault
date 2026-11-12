@@ -156,7 +156,7 @@ def select_option(
 
     # INITIAL MENU HEADER & GRID OPTIONS RENDERING
     # Displays prompt instructions and prints the initial multi-line 2D grid layout with the active item highlighted.
-    print(f"[?] {prompt}: (Use Arrow/WASD keys to navigate, Enter to select)")
+    print(f"[?] {prompt}")
     initial_lines = _render_grid()
     for line in initial_lines:
         print(f"\033[K{line}")

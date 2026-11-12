@@ -40,12 +40,12 @@ def _legacy_formatter(
 # and structured payloads to format comprehensive, machine-parsable JSON or structured log entries.
 # [>] EXECUTING STRUCTURED LOG FORMATTING
 def _structured_formatter(
-    _ts: str,
-    _log_symbol: str,
-    message: str,
-    _include_timestamp: bool,
-    severity: str,
-    component: str,
+    _ts: str = "",
+    _log_symbol: str = "",
+    message: str = "",
+    _include_timestamp: bool = True,
+    severity: str = "INFO",
+    component: str = "core",
     trace_id: str | None = None,
     span_id: str | None = None,
     actor: str | None = None,

@@ -390,7 +390,12 @@ def user_input(
 
             # CRITICAL NULL VALUE GUARD
             # Rejects empty user input for critical fields unless the cast type is password.
-            if is_field_critical and not user_val and cast_type != "password":
+            if (
+                is_field_critical
+                and not user_val
+                and cast_type != "password"
+                and field.get("default") != ""
+            ):
                 report_status(
                     state="warn",
                     message=f"Input rejected: {field_label!r} cannot be null in critical mode.",
