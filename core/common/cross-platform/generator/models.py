@@ -1,5 +1,5 @@
-from dataclasses import dataclass, asdict
 from typing import Any
+from dataclasses import dataclass, asdict
 
 
 # DATA JOB SUBSYSTEM: BASE METADATA DATACLASS

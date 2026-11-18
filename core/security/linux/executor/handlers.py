@@ -1,6 +1,6 @@
+import sys
 import shlex
 import subprocess
-import sys
 from typing import Any
 
 from .exceptions import (

@@ -1,6 +1,7 @@
+import re
 import textwrap
-from collections.abc import Sequence
 from typing import Any
+from collections.abc import Sequence
 
 
 # LAYOUT RESOLUTION & SPATIAL CALCULATION ENGINE
@@ -88,15 +89,30 @@ def resolve_layout(
             max_line_len = max((len(line) for line in source_lines), default=10)
             box_w = max_line_len + (4 if has_box else 0)
 
-        # SECTION HEIGHT RESOLUTION (h="auto" SUPPORT & TEXT WRAPPING)
-        # Computes dynamic height requirements, accounting for text wrapping and box borders.
+        # SECTION HEIGHT RESOLUTION (h="auto" SUPPORT & SMART TEXT WRAPPING)
+        # Computes dynamic height requirements, accounting for generic hanging indent patterns and box borders.
         box_h = sec.get("h", 10)
         if box_h == "auto":
             max_content_width = (box_w - 4) if has_box else box_w
             wrapped_line_count = 0
             for line in source_lines:
                 if wrap_text and max_content_width > 0:
-                    chunks = textwrap.wrap(line, width=max_content_width)
+                    # GENERIC SMART HANGING INDENT DETECTION (WITH KEY-VALUE / LABEL SUPPORT)
+                    # Matches tree structures (├──, └──) along with field labels and colons (e.g., Reason     :)
+                    # to compute precise wrap indentation across arbitrary structured terminal layouts.
+                    match = re.match(r"^(\s*(?:[│├└]──\s*|[│\s]*)*[\w\s_-]+:\s*)", line)
+                    if not match:
+                        match = re.match(r"^(\s*(?:[│├└]──\s*|[│\s]*)*)", line)
+
+                    prefix_len = len(match.group(1)) if match else 0
+
+                    wrapper = textwrap.TextWrapper(
+                        width=max_content_width,
+                        initial_indent="",
+                        subsequent_indent=" " * prefix_len,
+                        drop_whitespace=True,
+                    )
+                    chunks = wrapper.wrap(line)
                     wrapped_line_count += len(chunks) if chunks else 1
                 else:
                     wrapped_line_count += 1

@@ -1,7 +1,5 @@
 from typing import Any, Callable
 
-from typing import Any, Callable
-
 # DATA CONTAINER SUBSYSTEM: GLOBAL CONDITION OPERATORS REGISTRY
 # This constant dictionary defines global condition operators and comparison lambdas
 # used across data filtering, rule evaluation, and condition matching pipelines.

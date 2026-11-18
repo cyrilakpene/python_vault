@@ -419,6 +419,29 @@ def user_input(
                 casted_val = _process_field_casting(
                     user_val, cast_type, current_field, field
                 )
+
+                # GENERIC SCHEMA-DRIVEN "OTHER" HOOK
+                # Prompts for custom text when "Other" is selected, preserving the prior/default value if left blank.
+                if (
+                    field.get("allow_other")
+                    and isinstance(casted_val, str)
+                    and casted_val.lower() == "other"
+                ):
+                    custom_prompt = f"Enter custom {field_key}"
+                    custom_val = input(f"[?] {custom_prompt}: ").strip()
+                    if custom_val:
+                        # Create a modified copy of the field definition without 'choices'
+                        # to allow freeform custom input text to bypass set-membership restrictions.
+                        custom_field = dict(field)
+                        custom_field.pop("choices", None)
+                        casted_val = _process_field_casting(
+                            custom_val, cast_type, current_field, custom_field
+                        )
+                    elif "default" in field and field.get("default") is not None:
+                        casted_val = field.get("default")
+                    else:
+                        raise ValueError(f"Custom input for {field_key!r} cannot be empty when selecting 'Other'.")
+
                 results[field_key] = casted_val
                 report_status(
                     state="item",
@@ -445,7 +468,6 @@ def user_input(
                         context=LogContext(
                             component="interface.user_input",
                             log_path=log_path,
-                            silent=False,
                             trace_id="user_input",
                             actor=context.get("user"),
                             exception=str(e),

@@ -1,10 +1,9 @@
-import contextlib
 import io
 import re
 import sys
 import time
+import contextlib
 from typing import Callable
-
 
 from .models import OverlayConfig  # type: ignore[import-not-found]
 

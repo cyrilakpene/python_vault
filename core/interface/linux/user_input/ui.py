@@ -1,6 +1,6 @@
 import sys
-import termios
 import tty
+import termios
 from typing import Any, cast
 
 
@@ -101,6 +101,9 @@ def select_option(
     selected_index = 0
     if default is not None and default in choices:
         selected_index = choices.index(default)
+    elif default is not None and "Other" in choices:
+        # Fallback to highlight "Other" if the database holds a custom string not in standard choices
+        selected_index = choices.index("Other")
 
     # GRID TOPOLOGY METRICS INITIALIZATION
     # Computes total choices length and sets up a 2-column spatial grid layout matrix.

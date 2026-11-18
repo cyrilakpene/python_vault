@@ -1,3 +1,4 @@
+import re
 import textwrap
 from typing import Any
 
@@ -136,12 +137,27 @@ def heuristic_grid_renderer(
             max_height_limit = box_h
             text_x = box_x
 
-        # GRID MAPPING & TEXT WRAP EXECUTION
-        # Processes line content, applying text wrapping and rendering each chunk sequentially
-        # within the section's coordinate boundaries.
+        # GRID MAPPING & TEXT WRAP EXECUTION (SMART HANGING INDENT)
+        # Processes line content, applying intelligent prefix-matching text wrapping and rendering
+        # each chunk sequentially within the section's coordinate boundaries.
         for line in source_lines:
             if wrap_text and max_content_width > 0:
-                wrapped_chunks = textwrap.wrap(line, width=max_content_width)
+                # GENERIC SMART HANGING INDENT DETECTION (WITH KEY-VALUE / LABEL SUPPORT)
+                # Matches tree structure characters and field labels ending with a colon (e.g., Reason     :)
+                # to ensure continuation lines preserve exact column alignment.
+                match = re.match(r"^(\s*(?:[│├└]──\s*|[│\s]*)*[\w\s_-]+:\s*)", line)
+                if not match:
+                    match = re.match(r"^(\s*(?:[│├└]──\s*|[│\s]*)*)", line)
+
+                prefix_len = len(match.group(1)) if match else 0
+
+                wrapper = textwrap.TextWrapper(
+                    width=max_content_width,
+                    initial_indent="",
+                    subsequent_indent=" " * prefix_len,
+                    drop_whitespace=True,
+                )
+                wrapped_chunks = wrapper.wrap(line)
                 if not wrapped_chunks:
                     wrapped_chunks = [""]
             else:

@@ -28,6 +28,7 @@ class RuntimeContext:
         target_group: str,
         base_dir: str,
         max_log_days: int = 30,
+        log_format: str = "log",
         skip_security_checks: bool = False,
     ):
         """
@@ -37,6 +38,7 @@ class RuntimeContext:
             target_group (str): The logical target group identifier for pipeline execution.
             base_dir (str): Base filesystem directory for session artifacts and logs.
             max_log_days (int, optional): Maximum retention period for session logs in days. Defaults to 30.
+            log_format (str): The extention of the log file. Default: log.
             skip_security_checks (bool, optional): Whether to bypass pre-flight security validations. Defaults to False.
         """
         # CONFIGURATION BINDING
@@ -44,6 +46,7 @@ class RuntimeContext:
         self.target_group = target_group
         self.base_dir = base_dir
         self.max_log_days = max_log_days
+        self.log_format = log_format
         self.skip_security_checks = skip_security_checks
 
         # RUNTIME STATE INITIALIZATION
@@ -119,7 +122,7 @@ class RuntimeContext:
         # Delegate session directory provisioning and validation to the external resolve_session_path utility,
         # supplying base configuration, current path, forced creation flags, and system credentials.
         self.session_path = resolve_session_path(
-            self.base_dir, self.session_path, force_new, uid, gid, home
+            self.base_dir, self.session_path, force_new, uid, gid, home, self.log_format
         )
 
         # STATE RETURN

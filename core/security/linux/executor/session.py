@@ -1,8 +1,8 @@
 import queue
 import shlex
 import subprocess
-from contextlib import contextmanager
 from typing import Any, Generator
+from contextlib import contextmanager
 
 
 from .drainer import start_stream_drainer  # type: ignore[import-not-found]
@@ -63,6 +63,7 @@ def open_secure_session(
             env=safe_env,
             bufsize=bufsize,
             errors="replace",
+            start_new_session=True,
         )
 
         # STREAM DRAINER INITIALIZATION

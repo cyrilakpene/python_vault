@@ -1,7 +1,7 @@
 import os
-import hashlib
-import hmac
 import re
+import hmac
+import hashlib
 from typing import Callable
 
 from .exceptions import MaxRetriesExceededError  # type: ignore[import-not-found]

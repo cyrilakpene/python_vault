@@ -34,9 +34,11 @@ def render_stream_lines(
     # Iterates through each incoming line from the generator in real-time.
     for line in line_generator:
         matched = bool(pattern.search(line))
-        clean_line = intercept_line(line=line, pattern=pattern, target=target).rstrip(
-            "\r\n"
-        )
+
+        # UNPACK INTERCEPTED LINE & EXTRACTED GROUPS
+        # Unpacks the transformed string and named capture groups from the updated interceptor.
+        raw_clean_line, _ = intercept_line(line=line, pattern=pattern, target=target)
+        clean_line = raw_clean_line.rstrip("\r\n")
 
         # MATCHED PROGRESS LINE HANDLING
         # Writes matched lines in-place using carriage returns to facilitate dynamic progress updates.

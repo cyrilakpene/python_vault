@@ -81,9 +81,11 @@ def parse_list_int(v: str, field: dict[str, Any] | None) -> list[int]:
         reconciled_list = list(safe_default)
         for i, raw in enumerate(fragments):
             # [>] EVALUATING DIMENSIONAL BOUNDS
-            # We drop out early if inbound input dimensions exceed the baseline matrix footprint.
+            # We raise a ValueError if inbound input dimensions exceed the baseline matrix footprint.
             if i >= len(reconciled_list):
-                break
+                raise ValueError(
+                    f"Too many items provided ({len(fragments)} items). Expected at most {len(reconciled_list)}."
+                )
 
             # WHITESPACE STRIPPING: Removes leading/trailing noise.
             # ASSIGNMENT EXPRESSION (Walrus): Stores the cleaned string token.
@@ -227,9 +229,11 @@ def parse_list_float(v: str, field: dict[str, Any] | None) -> list[float]:
         reconciled_list = list(safe_default)
         for i, raw in enumerate(fragments):
             # [>] EVALUATING DIMENSIONAL BOUNDS
-            # We drop out early if inbound input dimensions exceed the baseline matrix footprint.
+            # We raise a ValueError if inbound input dimensions exceed the baseline matrix footprint.
             if i >= len(reconciled_list):
-                break
+                raise ValueError(
+                    f"Too many items provided ({len(fragments)} items). Expected at most {len(reconciled_list)}."
+                )
 
             # WHITESPACE STRIPPING & NUMERIC INTEGRITY CASTING
             if val := raw.strip():

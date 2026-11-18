@@ -4,18 +4,18 @@ from .constants import user_input  # type: ignore[import-not-found]
 
 
 # ACTION REGISTRY SUBSYSTEM: DYNAMIC PROMPT BUILDER & USER INPUT GATE
-# This utility constructs dynamic interactive prompt labels from active actions,
-# handles default selection logic, and collects operator choices via the user input gateway.
-# [>] EXECUTING PROMPT BUILDER & INGRESS GATE
+# This utility constructs dynamic interactive prompt labels from action options,
+# manages default selection flags, and collects operator choices via the user input gateway.
+# [>] EXECUTING DYNAMIC PROMPT BUILDER & INGRESS GATE
 def build_and_prompt(
-    active_actions: dict[str, dict[str, Any]], fallback_default: str = "c"
+    options: dict[str, dict[str, Any]], fallback_default: str = "c"
 ) -> tuple[str, str]:
     """
     Builds dynamic prompt labels and collects user input via user_input schema.
 
     Args:
-        active_actions (dict[str, dict[str, Any]]): A dictionary of filtered active menu action options.
-        fallback_default (str, optional): The fallback default selection key if no action is explicitly flagged. Defaults to "c".
+        options (dict[str, dict[str, Any]]): A dictionary of filtered action options available for selection.
+        fallback_default (str, optional): The fallback default selection key if no option is explicitly flagged. Defaults to "c".
 
     Returns:
         tuple[str, str]: The chosen user selection key and the default key.
@@ -25,10 +25,10 @@ def build_and_prompt(
     labels: list[str] = []
     default_key = fallback_default
 
-    # ACTION ITERATION & LABEL FORMATTING
-    # Iterates through active actions, identifying default options, formatting hotkey labels,
+    # OPTION ITERATION & LABEL FORMATTING
+    # Iterates through action options, identifying default selections, formatting bracketed hotkeys,
     # and appending status markers.
-    for key, opt in active_actions.items():
+    for key, opt in options.items():
         if opt.get("default", False):
             default_key = key
             labels.append(f"[{key}]{opt['label']} (default)")
@@ -36,7 +36,7 @@ def build_and_prompt(
             labels.append(f"[{key}]{opt['label']}")
 
     # PROMPT MESSAGE ASSEMBLY
-    # Joins all formatted action labels with pipe separators and appends a question mark.
+    # Joins all formatted option labels with pipe separators and appends a question mark.
     prompt_message = " | ".join(labels) + "?"
 
     # INGRESS GATE EXECUTION: USER INPUT COLLECTION

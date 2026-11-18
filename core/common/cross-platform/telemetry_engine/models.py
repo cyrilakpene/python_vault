@@ -1,6 +1,6 @@
 import re
-from dataclasses import dataclass, field
 from typing import Any, Callable
+from dataclasses import dataclass, field
 
 
 # TELEMETRY SUBSYSTEM: METRIC CONFIGURATION DATACLASS

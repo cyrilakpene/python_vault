@@ -14,6 +14,7 @@ def resolve_session_path(
     target_uid: int,
     target_gid: int,
     user_home: str,
+    log_format: str = "log",
 ) -> str:
     """
     Provisions secure physical storage and generates a timestamped session log.
@@ -25,6 +26,7 @@ def resolve_session_path(
         target_uid (int): The target User ID (UID) for setting file and directory ownership.
         target_gid (int): The target Group ID (GID) for setting file and directory ownership.
         user_home (str): The resolved home directory path of the human user.
+        log_format (str): The extention of the log file. Default: log.
 
     Returns:
         str: The absolute file path to the newly provisioned or existing session log.
@@ -50,7 +52,7 @@ def resolve_session_path(
         # Generates a unique microsecond-precision timestamped log filename, initializes the file,
         # and applies secure user/group ownership when running as root.
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        session_file = os.path.join(resolved_base, f"session_{timestamp}.log")
+        session_file = os.path.join(resolved_base, f"session_{timestamp}.{log_format}")
         open(session_file, "a").close()
 
         if os.geteuid() == 0:

@@ -235,18 +235,21 @@ copy_and_transform_folder(
 )"""
 
 
-"""source = (
+source = (
     Path.home()
-    / "/home/cyril/Documents/debian_package/mkv-encode-1.0.0/usr/lib/mkv-encode/interface/user_input"
+    / "/home/cyril/Documents/github/project/mkv-encode-1.0.0/usr/lib/mkv-encode/security/runtime_pkg"
 )
 destination = (
     Path.home()
-    / "/home/cyril/Documents/github/python_vault/core/interface/linux/user_input"
+    / "/home/cyril/Documents/github/python_vault/core/security/linux/runtime_pkg"
 )
 
 replacements = {
     "from interface.status_reporter import report_status, LogContext  # type: ignore[import-not-found]": "from status_reporter import report_status, LogContext  # type: ignore[import-not-found]",
     "from security.runtime_pkg import context, log_path  # type: ignore[import-not-found]": "from runtime_pkg import context, log_path  # type: ignore[import-not-found]",
+    "from interface.heuristic_renderer import heuristic_ui_renderer  # type: ignore[import-not-found]": "from heuristic_renderer import heuristic_ui_renderer  # type: ignore[import-not-found]",
+    "from interface.user_input import user_input  # type: ignore[import-not-found]": "from heuristic_renderer import heuristic_ui_renderer  # type: ignore[import-not-found]",
+    "from database.json_pipeline import get_deep_value  # type: ignore[import-not-found]": "from json_pipeline import get_deep_value  # type: ignore[import-not-found]",
 }
 
 copy_and_transform_folder(
@@ -256,10 +259,10 @@ copy_and_transform_folder(
     transform_extensions=[".py"],
     remove_targets=["__pycache__"],
     keep_files=["README.md"],
-)"""
+)
 
 
-source = (
+"""source = (
     Path.home()
     / "/home/cyril/Documents/debian_package/mkv-encode-1.0.0/usr/lib/mkv-encode/interface/status_reporter"
 )
@@ -274,4 +277,4 @@ copy_and_transform_folder(
     transform_extensions=[".py"],
     remove_targets=["__pycache__"],
     keep_files=["README.md"],
-)
+)"""

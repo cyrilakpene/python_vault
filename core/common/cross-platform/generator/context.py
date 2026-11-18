@@ -1,5 +1,5 @@
-from collections import defaultdict
 from typing import Any
+from collections import defaultdict
 
 
 # SYSTEM UTILITIES SUBSYSTEM: TEMPLATE CONTEXT WRAPPER

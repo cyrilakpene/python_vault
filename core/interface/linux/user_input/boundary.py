@@ -94,6 +94,12 @@ def enforce_boundaries(v: Any, field: dict[str, Any]) -> None:
                 f"Input is too long ({v_len} chars). Maximum allowed is {max_val}."
             )
 
+    elif isinstance(v, bool):
+        # BOOLEAN SUBCLASS CONFLATION GUARD
+        # In Python, bool is a subclass of int. We explicitly intercept booleans
+        # so they do not masquerade as integers or floats in numeric range checks.
+        raise ValueError(f"Value {v!r} is invalid. Expected numeric type, got boolean.")
+
     elif isinstance(v, (int, float)):
         # NUMERIC VALUE VALIDATION: MAGNITUDE CONTROL
         # For numeric types, we evaluate the absolute value against the

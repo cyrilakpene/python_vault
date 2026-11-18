@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
 from typing import Any, TextIO
+from dataclasses import dataclass, field
 
 from .constants import LogFormat  # type: ignore[import-not-found]
 

@@ -1,10 +1,10 @@
+import os
 import pty
 import sys
-import termios
 import tty
-import os
-from contextlib import contextmanager
+import termios
 from typing import Any, Generator
+from contextlib import contextmanager
 
 
 # SYSTEM UTILITIES SUBSYSTEM: PTY PAIR ALLOCATION

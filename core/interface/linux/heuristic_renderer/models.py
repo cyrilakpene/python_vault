@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any, Literal
+from dataclasses import dataclass, field
 
 
 # DATA MODEL ENGINE: MENU ENTRY & ROW MAPPING COMPOSITOR

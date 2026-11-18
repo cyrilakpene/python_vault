@@ -27,7 +27,7 @@ def initialize_user_workspace(
         template_sources (dict[str, Path | str], optional): Explicit filename-to-source mapping dictionary.
 
     Returns:
-        tuple[Path, Path]: The resolved config_dir and data_dir paths.
+        tuple[Path, Path]: The resolved config_file_path and data_file_path paths.
     """
     # PATH RESOLUTION DELEGATION
     # Resolves configuration, data, and system template paths via the paths subsystem.

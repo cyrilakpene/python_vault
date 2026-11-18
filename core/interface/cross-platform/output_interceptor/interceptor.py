@@ -1,6 +1,6 @@
 import re
 import sys
-from typing import Callable, Iterable, TextIO
+from typing import Any, Callable, Iterable, TextIO
 
 from .matcher import intercept_line  # type: ignore[import-not-found]
 from .renderer import render_stream_lines  # type: ignore[import-not-found]
@@ -85,6 +85,29 @@ class OutputInterceptor:
         # LINE INTERCEPTION & TRANSFORMATION DELEGATION
         # Delegate line matching, filtering, and template transformation to the centralized
         # intercept_line utility, passing the line, compiled regex pattern, and target template.
+        formatted_line, _ = intercept_line(
+            line=line,
+            pattern=self.pattern,
+            target=self.target,
+        )
+        return formatted_line
+
+    # STREAM FILTERING SUBSYSTEM: EXTENDED LINE INTERCEPTION WITH GROUPS
+    # This method intercepts incoming text lines and returns both the transformed string
+    # and the extracted named regex match groups for telemetry processing.
+    def intercept_with_groups(self, line: str) -> tuple[str, dict[str, Any]]:
+        """
+        Intercepts an incoming line of text, returning both the transformed text string
+        and the extracted named regex groups dictionary.
+
+        Args:
+            line (str): The incoming line of text to be evaluated and intercepted.
+
+        Returns:
+            tuple[str, dict[str, Any]]: A tuple containing the formatted line string and the named match groups.
+        """
+        # EXTENDED LINE INTERCEPTION & GROUP EXTRACTION DELEGATION
+        # Delegates to intercept_line and returns both the formatted string and captured groups.
         return intercept_line(
             line=line,
             pattern=self.pattern,

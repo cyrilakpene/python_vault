@@ -1,10 +1,10 @@
 import re
 import os
-import errno
-import select
 import sys
 import time
 import shlex
+import errno
+import select
 import subprocess
 from typing import Any
 

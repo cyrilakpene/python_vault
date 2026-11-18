@@ -1,4 +1,5 @@
 from .session import open_secure_session  # type: ignore[import-not-found]
+from .interface import interactive_monitor  # type: ignore[import-not-found]
 from .runner import run_secure_cmd  # type: ignore[import-not-found]
 from .interactive import run_interactive_cmd  # type: ignore[import-not-found]
 from .exceptions import (
@@ -10,6 +11,7 @@ from .exceptions import (
 
 __all__ = [
     "open_secure_session",
+    "interactive_monitor",
     "run_secure_cmd",
     "run_interactive_cmd",
     "PathResolutionError",

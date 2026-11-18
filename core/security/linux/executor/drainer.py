@@ -1,6 +1,7 @@
 import queue
-import subprocess
 import threading
+import subprocess
+
 from typing import Any
 
 
@@ -34,6 +35,11 @@ def start_stream_drainer(
                 for line in iter(proc.stdout.readline, ""):
                     if line:
                         out_q.put(line)
+        except (ValueError, OSError):
+            # STREAM CLOSED EXCEPTION HANDLING
+            # Safely catches I/O errors or closed file exceptions when the main thread
+            # terminates or reclaims process resources during shutdown.
+            pass
         finally:
             # TERMINATION SIGNAL & STDOUT RESOURCE CLEANUP
             # Signals end-of-stream by pushing None to the queue and safely closing the process stdout pipe.
