@@ -2,6 +2,7 @@ from typing import Any, Callable
 
 from .registry import register_step  # type: ignore[import-not-found]
 from .prompt import build_and_prompt  # type: ignore[import-not-found]
+from .constants import report_status, LogContext, log_path, context  # type: ignore[import-not-found]
 
 
 # WORKFLOW SUBSYSTEM: INITIAL STATE RESOLUTION & CONFIGURATION EXTRACTION
@@ -26,12 +27,42 @@ def _resolve_initial_state(
     # Retrieves the workflow run definition corresponding to the specified run key.
     run_def = workflow_config.get(run_key)
     if not run_def:
+        report_status(
+            state="warn",
+            message=f"Workflow run key {run_key!r} not found in configuration.",
+            context=LogContext(
+                component="prompt_engine",
+                log_path=log_path,
+                trace_id="interface.prompt_engine",
+                actor=context.get("user"),
+                payload={
+                    "run_key": run_key,
+                    "available_keys": list(workflow_config.keys()),
+                },
+            ),
+        )
         return None, {}, None
 
     # STATES & INITIAL STATE EXTRACTION
     # Extracts the prompts dictionary and initial state identifier from the workflow definition.
     states = run_def.get("prompts", {})
     initial_state = run_def.get("initial_state")
+
+    if not initial_state:
+        report_status(
+            state="warn",
+            message=f"Workflow run {run_key!r} is missing an 'initial_state'.",
+            context=LogContext(
+                component="prompt_engine",
+                log_path=log_path,
+                trace_id="interface.prompt_engine",
+                actor=context.get("user"),
+                payload={
+                    "run_key": run_key,
+                    "has_prompts": bool(states),
+                },
+            ),
+        )
 
     # RESOLVED WORKFLOW TUPLE RETURN
     # Returns the workflow definition, states dictionary, and initial state key.
@@ -46,7 +77,7 @@ def _execute_workflow_loop(
     states: dict[str, Any],
     current_state_key: str | None,
     steps: dict[str, dict[str, Any]],
-    context: dict[str, Any],
+    state_context: dict[str, Any],
     registry: dict[str, Any],
 ) -> tuple[bool, dict[str, Any]]:
     """
@@ -56,7 +87,7 @@ def _execute_workflow_loop(
         states (dict[str, Any]): Dictionary containing state configurations and prompt definitions.
         current_state_key (str | None): String identifier for the current active state in the graph.
         steps (dict[str, dict[str, Any]]): Dictionary mapping state keys to their execution step definitions.
-        context (dict[str, Any]): Runtime context dictionary tracking execution data and variables.
+        state_context (dict[str, Any]): Runtime context dictionary tracking execution data and variables.
         registry (dict[str, Any]): Global registry dictionary maintaining configuration and session state.
 
     Returns:
@@ -71,12 +102,30 @@ def _execute_workflow_loop(
         # STATE & STEP VALIDATION GUARD
         # Terminates execution and returns failure status if state configurations or step definitions are missing.
         if not state_cfg or not step_def:
+            report_status(
+                state="fail",
+                message=(
+                    f"Missing state configuration or step definition for state "
+                    f"{current_state_key!r}; aborting workflow."
+                ),
+                context=LogContext(
+                    component="pompt_engine",
+                    log_path=log_path,
+                    trace_id="interface.pompt_engine",
+                    actor=context.get("user"),
+                    payload={
+                        "state_key": current_state_key,
+                        "has_state_cfg": bool(state_cfg),
+                        "has_step_def": bool(step_def),
+                    },
+                ),
+            )
             return False, registry
 
         # STATE STEP EXECUTION & SIGNAL RESOLUTION
         # Executes the individual workflow step, handling automatic natural flows or interactive operator prompts.
-        transition_signal, context = _execute_state_step(
-            state_cfg, step_def, steps, context, registry
+        transition_signal, state_context = _execute_state_step(
+            state_cfg, step_def, steps, state_context, registry
         )
 
         # NEXT TRANSITION RESOLUTION
@@ -85,7 +134,7 @@ def _execute_workflow_loop(
 
     # WORKFLOW COMPLETION RETURN
     # Returns success status and the finalized runtime context upon successful graph termination.
-    return True, context
+    return True, state_context
 
 
 # WORKFLOW SUBSYSTEM: STATE STEP EXECUTION & MODE DISPATCH
@@ -96,7 +145,7 @@ def _execute_state_step(
     state_cfg: dict[str, Any],
     step_def: dict[str, Any],
     steps: dict[str, dict[str, Any]],
-    context: dict[str, Any],
+    state_context: dict[str, Any],
     registry: dict[str, Any],
 ) -> tuple[str | None, dict[str, Any]]:
     """
@@ -106,7 +155,7 @@ def _execute_state_step(
         state_cfg (dict[str, Any]): Configuration dictionary defining the current state parameters and options.
         step_def (dict[str, Any]): Step definition dictionary containing handlers, modes, and labels.
         steps (dict[str, dict[str, Any]]): Dictionary mapping state keys to their respective step definitions.
-        context (dict[str, Any]): Runtime context dictionary tracking execution data and variables.
+        state_context (dict[str, Any]): Runtime context dictionary tracking execution data and variables.
         registry (dict[str, Any]): Global registry dictionary maintaining configuration and session state.
 
     Returns:
@@ -115,34 +164,112 @@ def _execute_state_step(
     # HANDLER & MODE RESOLUTION
     # Extracts the execution handler function and resolves the operational mode from state config or step definitions.
     handler = step_def["handler"]
-    mode = state_cfg.get("mode", step_def["mode"])
+    mode = state_cfg.get("mode", step_def.get("mode", "interactive"))
+    step_key = step_def.get("key", "<unknown>")
+
+    if mode not in {"automatic", "interactive"}:
+        report_status(
+            state="warn",
+            message=(
+                f"Unknown execution mode {mode!r} for step {step_key!r}; "
+                "defaulting to 'interactive'."
+            ),
+            context=LogContext(
+                component="pompt_engine",
+                log_path=log_path,
+                trace_id="interface.pompt_engine",
+                actor=context.get("user"),
+                payload={
+                    "step_key": step_key,
+                    "mode": mode,
+                },
+            ),
+        )
+        mode = "interactive"
 
     # AUTOMATIC MODE EXECUTION
     # Executes the handler directly for natural flow automation without interactive prompts or options.
     if mode == "automatic":
-        return handler(context, registry)
+        try:
+            return handler(state_context, registry)
+        except Exception as exc:
+            report_status(
+                state="fail",
+                message=f"Automatic handler failed for step {step_key!r}: {exc}.",
+                context=LogContext(
+                    component="pompt_engine",
+                    log_path=log_path,
+                    trace_id="interface.pompt_engine",
+                    actor=context.get("user"),
+                    exception=str(exc),
+                    payload={
+                        "step_key": step_key,
+                        "mode": mode,
+                    },
+                ),
+            )
+            raise
 
     # AVAILABLE OPTIONS & INTERACTIVE PROMPT GENERATION
     # Checks for configured options, compiling active prompt option mappings with labels and default flags.
     available_options = state_cfg.get("options", {})
     if available_options:
-        active_prompt_options = {
-            k: {
+        active_prompt_options: dict[str, dict[str, Any]] = {}
+        for k in available_options:
+            if k not in steps:
+                report_status(
+                    state="warn",
+                    message=(
+                        f"Option key {k!r} in step {step_key!r} is missing from "
+                        "registered steps; skipping option."
+                    ),
+                    context=LogContext(
+                        component="pompt_engine",
+                        log_path=log_path,
+                        trace_id="interface.pompt_engine",
+                        actor=context.get("user"),
+                        payload={
+                            "step_key": step_key,
+                            "option_key": k,
+                        },
+                    ),
+                )
+                continue
+
+            option_entry: dict[str, Any] = {
                 "label": steps[k]["label"],
                 "default": (k == state_cfg.get("default")),
             }
-            for k in available_options
-            if k in steps
-        }
+            if "condition" in steps[k]:
+                option_entry["condition"] = steps[k]["condition"]
+            active_prompt_options[k] = option_entry
 
         # PROMPT BUILDER INVOCATION & CHOICE CAPTURE
         # Prompts the operator with active options and captures the selected transition choice.
-        choice, _ = build_and_prompt(active_prompt_options)
-        return choice, context
+        choice, _ = build_and_prompt(active_prompt_options, state_context=state_context)
+        return choice, state_context
 
     # FALLBACK HANDLER EXECUTION
     # Invokes the step handler directly if no interactive options are defined.
-    return handler(context, registry)
+    try:
+        return handler(state_context, registry)
+    except Exception as exc:
+        report_status(
+            state="fail",
+            message=f"Handler failed for step {step_key!r}: {exc}.",
+            context=LogContext(
+                component="pompt_engine",
+                log_path=log_path,
+                trace_id="interface.pompt_engine",
+                actor=context.get("user"),
+                exception=str(exc),
+                payload={
+                    "step_key": step_key,
+                    "mode": mode,
+                },
+            ),
+        )
+        raise
 
 
 # WORKFLOW SUBSYSTEM: TRANSITION RESOLUTION & STATE GRAPH ROUTING
@@ -171,10 +298,46 @@ def _resolve_next_transition(
     if transition_signal in transitions:
         return transitions[transition_signal]
     elif "default" in transitions:
+        report_status(
+            state="warn",
+            message=(
+                f"Transition signal {transition_signal!r} not in transitions; "
+                f"falling back to 'default' ({transitions['default']!r})."
+            ),
+            context=LogContext(
+                component="pompt_engine",
+                log_path=log_path,
+                trace_id="interface.pompt_engine",
+                actor=context.get("user"),
+                payload={
+                    "transition_signal": transition_signal,
+                    "default_target": transitions["default"],
+                    "available_transitions": list(transitions.keys()),
+                },
+            ),
+        )
         return transitions["default"]
 
     # RAW TRANSITION SIGNAL RETURN
     # Returns the raw transition signal if no explicit or default transition mapping is found.
+    if transition_signal is not None:
+        report_status(
+            state="warn",
+            message=(
+                f"No transition mapping or default for signal {transition_signal!r}; "
+                "returning raw signal."
+            ),
+            context=LogContext(
+                component="pompt_engine",
+                log_path=log_path,
+                trace_id="interface.pompt_engine",
+                actor=context.get("user"),
+                payload={
+                    "transition_signal": transition_signal,
+                    "available_transitions": list(transitions.keys()),
+                },
+            ),
+        )
     return transition_signal
 
 
@@ -212,23 +375,26 @@ class DynamicMenuEngine:
         handler: Callable[..., tuple[str | None, dict[str, Any]]],
         label: str | None = None,
         mode: str = "interactive",
+        condition: Callable[[dict[str, Any]], bool] | None = None,
     ) -> None:
         """
         Registers a non-linear workflow execution step, specifying its unique key, display label,
-        execution handler callback, and operating mode.
+        execution handler callback, operating mode, and optional condition predicate.
 
         Args:
             key (str): The unique identifier key for the workflow step.
-            label (str | None): The human-readable display label for the workflow step.
             handler (Callable[..., tuple[str | None, dict[str, Any]]]): The callable execution handler
                 for the step, returning a next-step target indicator and updated context dictionary.
+            label (str | None): The human-readable display label for the workflow step.
             mode (str, optional): The execution mode for the step (e.g., "interactive", "batch").
                 Defaults to "interactive".
+            condition (Callable[[dict[str, Any]], bool] | None, optional): Optional predicate evaluated
+                against runtime context. Defaults to None.
         """
         # STEP REGISTRATION DELEGATION
         # Delegate registration, metadata validation, and storage of the workflow step
         # to the centralized register_step utility, passing the internal steps registry and parameters.
-        register_step(self.steps, key, label, handler, mode)
+        register_step(self.steps, key, label, handler, mode, condition=condition)
 
     # WORKFLOW SUBSYSTEM: GRAPH WORKFLOW EXECUTION ENTRY POINT
     # This method serves as the main entry point for graph-based workflow execution,
@@ -237,7 +403,7 @@ class DynamicMenuEngine:
         self,
         run_key: str,
         workflow_config: dict[str, Any],
-        context: dict[str, Any],
+        state_context: dict[str, Any],
         registry: dict[str, Any],
     ) -> tuple[bool, dict[str, Any]]:
         """
@@ -247,7 +413,7 @@ class DynamicMenuEngine:
         Args:
             run_key (str): The unique run key identifying the workflow execution configuration.
             workflow_config (dict[str, Any]): The workflow configuration dictionary containing states and rules.
-            context (dict[str, Any]): The current runtime context dictionary carrying execution state.
+            state_context (dict[str, Any]): The current runtime context dictionary carrying execution state.
             registry (dict[str, Any]): The registry container dictionary accessible across workflow steps.
 
         Returns:
@@ -265,11 +431,29 @@ class DynamicMenuEngine:
         # Validate that both the run definition and starting state key were successfully resolved;
         # return a failure flag and registry reference immediately if validation fails.
         if not run_def or not current_state_key:
+            report_status(
+                state="fail",
+                message=(
+                    f"Workflow execution aborted for run key {run_key!r}: "
+                    "missing run definition or initial state."
+                ),
+                context=LogContext(
+                    component="pompt_engine",
+                    log_path=log_path,
+                    trace_id="interface.pompt_engine",
+                    actor=context.get("user"),
+                    payload={
+                        "run_key": run_key,
+                        "has_run_def": bool(run_def),
+                        "has_initial_state": bool(current_state_key),
+                    },
+                ),
+            )
             return False, registry
 
         # WORKFLOW LOOP EXECUTION DELEGATION
         # Delegate the core graph execution loop to the centralized _execute_workflow_loop utility,
-        # passing state definitions, current state key, registered steps, context, and registry.
+        # passing state definitions, current state key, registered steps, state context, and registry.
         return _execute_workflow_loop(
-            states, current_state_key, self.steps, context, registry
+            states, current_state_key, self.steps, state_context, registry
         )
