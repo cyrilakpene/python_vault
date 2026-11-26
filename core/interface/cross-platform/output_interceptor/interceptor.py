@@ -41,7 +41,7 @@ class OutputInterceptor:
         """
         # REGEX PATTERN COMPILATION
         # Compile the provided string pattern into an efficient regular expression object for matching.
-        self.pattern = re.compile(pattern)
+        self.pattern: re.Pattern[str] = re.compile(pattern)
 
         # TARGET TEMPLATE ASSIGNMENT
         # Store the target template string or callable formatter for transforming matched output.
@@ -55,7 +55,7 @@ class OutputInterceptor:
         # Reports the successful initialization of the output interceptor stream filter.
         report_status(
             state="info",
-            message=f"Initializing OutputInterceptor with pattern.",
+            message="Initializing OutputInterceptor with pattern.",
             context=LogContext(
                 component="interface.interceptor",
                 log_path=log_path,

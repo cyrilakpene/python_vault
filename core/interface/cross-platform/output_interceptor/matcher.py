@@ -40,7 +40,7 @@ def intercept_line(
     # Attempts to format or transform the matched elements, returning the result with a terminal clear sequence.
     try:
         formatted = format_match(target=target, kwargs=kwargs, args=args)
-        return f"{formatted}\033[K", kwargs
+        return f"{formatted}\033[K", dict(kwargs)
     except (KeyError, ValueError, IndexError, TypeError) as e:
         # FORMATTING EXCEPTION HANDLING & FALLBACK
         # Reports a warning when dynamic formatting fails and falls back to the original line.
@@ -57,4 +57,4 @@ def intercept_line(
                 payload={"line": line.strip()},
             ),
         )
-        return line, kwargs
+        return line, dict(kwargs)

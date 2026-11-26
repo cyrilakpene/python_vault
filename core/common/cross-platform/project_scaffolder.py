@@ -236,11 +236,11 @@ copy_and_transform_folder(
 
 source = (
     Path.home()
-    / "/home/cyril/Documents//debian_package/mkv-encode-1.1.0/usr/lib/mkv-encode/interface/prompt_engine"
+    / "/home/cyril/Documents//debian_package/mkv-encode-1.1.0/usr/lib/mkv-encode/interface/output_interceptor"
 )
 destination = (
     Path.home()
-    / "/home/cyril/Documents/github/python_vault/core/interface/linux/prompt_engine"
+    / "/home/cyril/Documents/github/python_vault/core/interface/cross-platform/output_interceptor"
 )
 
 replacements = {

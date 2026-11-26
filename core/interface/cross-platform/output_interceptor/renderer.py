@@ -33,7 +33,7 @@ def render_stream_lines(
     # STREAM GENERATOR ITERATION & CONSUMPTION
     # Iterates through each incoming line from the generator in real-time.
     for line in line_generator:
-        matched = bool(pattern.search(line))
+        matched = pattern.search(line) is not None
 
         # UNPACK INTERCEPTED LINE & EXTRACTED GROUPS
         # Unpacks the transformed string and named capture groups from the updated interceptor.
@@ -52,6 +52,7 @@ def render_stream_lines(
         else:
             if last_was_intercepted:
                 stream.write("\n")
+                stream.flush()
             stream.write(f"{clean_line}\n")
             stream.flush()
             last_was_intercepted = False
