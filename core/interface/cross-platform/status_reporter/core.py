@@ -12,7 +12,7 @@ from .constants import StatusState  # type: ignore[import-not-found]
 # frequency throttling, session logging, smart stream routing, and runtime cache hygiene.
 # [>] EXECUTING STATUS REPORTING & ORCHESTRATION
 def report_status(
-    state: StatusState | None,
+    state: StatusState | str | None,
     message: str | None,
     context: LogContext | None = None,
     **kwargs: Any,

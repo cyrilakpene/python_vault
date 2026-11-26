@@ -1,7 +1,7 @@
 from typing import Any, TextIO
 from dataclasses import dataclass, field
 
-from .constants import LogFormat  # type: ignore[import-not-found]
+from .constants import LogFormat, LogSeverity  # type: ignore[import-not-found]
 
 
 # DATACLASS DEFINITION: LOGGING & TELEMETRY CONTEXT
@@ -25,7 +25,7 @@ class LogContext:
         trace_id (str | None): Optional session or transaction trace identifier for distributed tracking. Defaults to None.
         span_id (str | None): Optional span identifier for sub-operation tracking. Defaults to None.
         actor (str | None): Optional user or process identity string for auditing. Defaults to None.
-        min_severity (str): Minimum threshold level required to commit a log record. Defaults to "INFO".
+        min_severity (LogSeverity | str): Minimum threshold level required to commit a log record. Defaults to "INFO".
         elapsed_ms (float | int | None): Optional execution time elapsed in milliseconds. Defaults to None.
         steped (int | None): Optional discrete step counter for modulo-based frequency throttling.
         exception (str | None): Optional exception message or error description string. Defaults to None.
@@ -45,7 +45,7 @@ class LogContext:
     trace_id: str | None = None
     span_id: str | None = None
     actor: str | None = None
-    min_severity: str = "INFO"
+    min_severity: LogSeverity | str = "INFO"
     elapsed_ms: float | int | None = None
     steped: int | None = None
     exception: str | None = None

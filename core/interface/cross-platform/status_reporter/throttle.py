@@ -1,6 +1,7 @@
 import time
 
 from .cache import LOOP_CACHE  # type: ignore[import-not-found]
+from .constants import StatusState  # type: ignore[import-not-found]
 
 
 # THROTTLE EVALUATION & RECURRING EVENT FILTERING ENGINE
@@ -8,7 +9,7 @@ from .cache import LOOP_CACHE  # type: ignore[import-not-found]
 # or temporal time-delta durations, ensuring terminal states always bypass throttling limits.
 # [>] EXECUTING THROTTLE EVALUATION
 def evaluate_throttle(
-    state: str | None,
+    state: StatusState | str | None,
     message: str | None,
     is_loop: float | int | bool,
     step: int | None,
@@ -33,12 +34,12 @@ def evaluate_throttle(
     # TERMINAL STATE IDENTIFICATION
     # Identifies whether the current state represents a completion or failure condition,
     # which forces the throttle filter to allow the event through regardless of intervals.
-    is_terminal_state = str(state or "").lower() in ["done", "fail"]
+    is_terminal_state = str(state or "").lower() in ("done", "fail")
 
     # STEP-BASED THROTTLE: DISCRETE MILESTONE EVALUATION
     # Evaluates modulo-based milestone intervals if an explicit step counter is provided.
     if step is not None:
-        interval = int(is_loop) if int(is_loop) > 0 else 1
+        interval = max(1, int(is_loop)) if not isinstance(is_loop, bool) else 1
         is_due = (step == 0) or (step % interval == 0)
 
         if not is_due and not is_terminal_state:
@@ -48,14 +49,15 @@ def evaluate_throttle(
     else:
         # MESSAGE VALIDATION GATE
         # Prevents None or empty messages from colliding in the global cache dictionary.
-        if message is None:
+        if not message:
             return True
 
+        threshold = 0.0 if isinstance(is_loop, bool) else float(is_loop)
         now_ts = time.time()
         msg_key = str(message)
         last_ts = float(LOOP_CACHE.get(msg_key, 0.0))
 
-        is_due = (now_ts - last_ts) >= float(is_loop)
+        is_due = (now_ts - last_ts) >= threshold
 
         if not is_due and not is_terminal_state:
             return False
@@ -71,7 +73,7 @@ def evaluate_throttle(
 # This utility manages cache hygiene by removing completed or failed terminal state messages
 # from the global tracking cache, preventing unbounded memory growth during long-running tasks.
 # [>] EXECUTING CACHE CLEANUP & MEMORY PURGE
-def cleanup_cache(state: str | None, message: str | None) -> None:
+def cleanup_cache(state: StatusState | str | None, message: str | None) -> None:
     """
     Removes terminal state messages from cache to prevent memory growth.
 
@@ -87,9 +89,5 @@ def cleanup_cache(state: str | None, message: str | None) -> None:
     # TERMINAL CACHE PURGE
     # Checks if the normalized state represents a completion or failure condition
     # and safely removes the message entry from the global cache if present.
-    if (
-        normalized_state in ["done", "fail"]
-        and message is not None
-        and str(message) in LOOP_CACHE
-    ):
+    if normalized_state in ("done", "fail") and message is not None:
         LOOP_CACHE.pop(str(message), None)

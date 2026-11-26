@@ -1,9 +1,9 @@
 import os
 import json
-from typing import Any, Callable
+from typing import Any, Callable, Literal, cast
 from datetime import datetime
 
-from .constants import LogFormat, SEVERITY_LEVELS, SEVERITY_MAP  # type: ignore[import-not-found]
+from .constants import LogFormat, LogSeverity, SEVERITY_LEVELS, SEVERITY_MAP  # type: ignore[import-not-found]
 
 
 # LOG FORMATTING SUBSYSTEM: LEGACY LOG FORMATTER
@@ -11,10 +11,10 @@ from .constants import LogFormat, SEVERITY_LEVELS, SEVERITY_MAP  # type: ignore[
 # facilitating extensible O(1) format routing and legacy log string construction.
 # [>] EXECUTING LEGACY LOG FORMATTING
 def _legacy_formatter(
-    ts: str,
-    log_symbol: str,
-    message: str,
-    include_timestamp: bool,
+    ts: str = "",
+    log_symbol: str = "",
+    message: str = "",
+    include_timestamp: bool = True,
     **kwargs: Any,
 ) -> str:
     """
@@ -32,7 +32,12 @@ def _legacy_formatter(
     """
     # LEGACY LOG FORMAT ROUTING
     # Delegates formatting to the core legacy log builder using the provided parameters.
-    return _format_legacy_log(ts, log_symbol, message, include_timestamp)
+    return _format_legacy_log(
+        ts=ts,
+        log_symbol=log_symbol,
+        message=message,
+        include_timestamp=include_timestamp,
+    )
 
 
 # LOG FORMATTING SUBSYSTEM: STRUCTURED LOG FORMATTER
@@ -44,7 +49,7 @@ def _structured_formatter(
     _log_symbol: str = "",
     message: str = "",
     _include_timestamp: bool = True,
-    severity: str = "INFO",
+    severity: LogSeverity | str = "INFO",
     component: str = "core",
     trace_id: str | None = None,
     span_id: str | None = None,
@@ -63,7 +68,7 @@ def _structured_formatter(
         _log_symbol (str): The symbol or severity indicator (subsumed by explicit severity parameter).
         message (str): The primary log message text describing the event.
         _include_timestamp (bool): Flag indicating whether timestamp inclusion is requested.
-        severity (str): The severity level of the log entry (e.g., INFO, ERROR, DEBUG).
+        severity (LogSeverity | str): The severity level of the log entry (e.g., INFO, ERROR, DEBUG).
         component (str): The architectural component or module emitting the log.
         trace_id (str | None): Optional distributed tracing identifier for request correlation.
         span_id (str | None): Optional tracing span identifier for execution scope.
@@ -93,7 +98,10 @@ def _structured_formatter(
     )
 
 
-LOG_FORMATTER_MAP: dict[str, Callable[..., str]] = {
+# LOG FORMATTER DISPATCH TABLE: FORMAT MODE TO CALLABLE MAPPING
+# Maps supported log format identifiers ("legacy" and "structured") to their
+# corresponding formatter callables for O(1) runtime dispatch in commit_log.
+LOG_FORMATTER_MAP: dict[LogFormat, Callable[..., str]] = {
     "legacy": _legacy_formatter,
     "structured": _structured_formatter,
 }
@@ -104,7 +112,10 @@ LOG_FORMATTER_MAP: dict[str, Callable[..., str]] = {
 # log symbols, and formatted message strings.
 # [>] EXECUTING LEGACY LOG FORMATTING
 def _format_legacy_log(
-    ts: str, log_symbol: str, message: str, include_timestamp: bool
+    ts: str,
+    log_symbol: str,
+    message: str,
+    include_timestamp: bool = True,
 ) -> str:
     """
     Builds the classic human-readable plain text log line.
@@ -113,25 +124,23 @@ def _format_legacy_log(
         ts (str): The timestamp string marking the log event.
         log_symbol (str): The symbol or status indicator representing the log severity.
         message (str): The detailed log message text.
+        include_timestamp (bool): Whether to include the formatted timestamp prefix. Defaults to True.
 
     Returns:
         str: A formatted plain text log string terminated with a newline character.
     """
-    # MESSAGE VALIDATION
-    # Safely converts message to string, treating None as an empty string.
+    # MESSAGE & SYMBOL NORMALIZATION
+    # Safely converts message and symbol to strings, avoiding literal "None" in output.
     safe_message = str(message or "")
+    safe_symbol = str(log_symbol or "")
 
     # LEGACY LOG LINE CONSTRUCTION
     # Formats and returns the timestamp, symbol, and message into a standardized plain text log line.
-    if include_timestamp:
-        if log_symbol:
-            return f"[{ts}] {log_symbol} {safe_message}\n"
-        return f"[{ts}] {safe_message}\n"
+    prefix = f"[{ts}] " if (include_timestamp and ts) else ""
+    if safe_symbol:
+        return f"{prefix}{safe_symbol} {safe_message}\n"
 
-    if log_symbol:
-        return f"{log_symbol} {safe_message}\n"
-
-    return f"{safe_message}\n"
+    return f"{prefix}{safe_message}\n"
 
 
 # LOGGING SUBSYSTEM: STRUCTURED JSON LOG RECORD BUILDER
@@ -139,7 +148,7 @@ def _format_legacy_log(
 # severities, components, messages, trace IDs, span IDs, actors, elapsed durations, exceptions, and optional payload dictionaries.
 # [>] EXECUTING STRUCTURED LOG FORMATTING
 def _format_structured_log(
-    severity: str,
+    severity: LogSeverity | str,
     component: str,
     message: str,
     trace_id: str | None = None,
@@ -154,13 +163,14 @@ def _format_structured_log(
     Builds an enterprise-grade structured JSON log record (JSONL).
 
     Args:
-        severity (str): The severity level of the log record (e.g., info, warn, fail).
+        severity (LogSeverity | str): The severity level of the log record (e.g., INFO, WARNING, ERROR).
         component (str): The subsystem or component emitting the log record.
         message (str): The detailed log message text.
         trace_id (str | None): Optional tracing identifier for request correlation. Defaults to None.
         span_id (str | None): Optional span identifier for sub-operation tracking. Defaults to None.
         actor (str | None): Optional actor or user identifier associated with the event. Defaults to None.
         elapsed_ms (float | int | None): Optional execution time elapsed in milliseconds. Defaults to None.
+        steped (int | None): Optional discrete step counter for modulo-based frequency throttling. Defaults to None.
         exception (str | None): Optional exception message or error description string. Defaults to None.
         payload (dict[str, Any] | None): Optional supplementary contextual payload data. Defaults to None.
 
@@ -168,9 +178,9 @@ def _format_structured_log(
         str: A serialized JSONL formatted log string terminated with a newline character.
     """
     # BASE LOG ENTRY INITIALIZATION
-    # Constructs the root log entry dictionary with ISO 8601 UTC timestamp, severity, component, and message.
+    # Constructs the root log entry dictionary with an accurate ISO 8601 timestamp, severity, component, and message.
     log_entry: dict[str, Any] = {
-        "timestamp": datetime.now().isoformat() + "Z",
+        "timestamp": datetime.now().astimezone().isoformat(),
         "severity": severity,
         "component": component,
         "message": message,
@@ -196,8 +206,8 @@ def _format_structured_log(
     if elapsed_ms is not None:
         log_entry["elapsed_ms"] = elapsed_ms
 
-    # ELAPSED DURATION INCLUSION
-    # Conditionally appends performance execution steps if provided.
+    # STEP COUNTER INCLUSION
+    # Conditionally appends discrete step count if provided.
     if steped is not None:
         log_entry["steped"] = steped
 
@@ -213,7 +223,7 @@ def _format_structured_log(
 
     # JSON SERIALIZATION & LINE TERMINATION
     # Serializes the log entry dictionary into a compact JSON string and appends a newline character.
-    return json.dumps(log_entry) + "\n"
+    return json.dumps(log_entry, default=str) + "\n"
 
 
 # LOGGING SUBSYSTEM: BACKGROUND SESSION LOG COMMIT & SEVERITY GATE
@@ -233,7 +243,7 @@ def commit_log(
     elapsed_ms: float | int | None = None,
     steped: int | None = None,
     exception: str | None = None,
-    min_severity: str = "INFO",
+    min_severity: LogSeverity | str = "INFO",
     include_timestamp: bool = True,
 ) -> None:
     """
@@ -251,8 +261,9 @@ def commit_log(
         span_id (str | None): Optional span identifier for sub-operation tracking. Defaults to None.
         actor (str | None): Optional user or process identity string. Defaults to None.
         elapsed_ms (float | int | None): Optional execution time elapsed in milliseconds. Defaults to None.
+        steped (int | None): Optional discrete step counter for modulo-based frequency throttling. Defaults to None.
         exception (str | None): Optional exception message or error description string. Defaults to None.
-        min_severity (str): Minimum threshold level required to commit a log record. Defaults to "INFO".
+        min_severity (LogSeverity | str): Minimum threshold level required to commit a log record. Defaults to "INFO".
         include_timestamp (bool): If True, passes real-time timestamp to the logger. Default to True.
 
     Returns:
@@ -270,13 +281,17 @@ def commit_log(
 
             # SYMBOL CLEANING & SEVERITY RESOLUTION
             # Cleans the log symbol and resolves it to a standardized enterprise severity level via the central map.
-            clean_symbol = log_symbol.strip("[] ").strip()
-            severity: str = SEVERITY_MAP.get(clean_symbol, "INFO")
+            clean_symbol = str(log_symbol or "").strip("[] ").strip()
+            severity: LogSeverity | Literal["INPUT"] = SEVERITY_MAP.get(clean_symbol, "INFO")
 
             # SEVERITY THRESHOLD GATE CHECK
             # Evaluates current severity rank against the minimum threshold rank; bypasses logging if below threshold.
             current_rank = SEVERITY_LEVELS.get(severity, 20)
-            threshold_rank = SEVERITY_LEVELS.get(min_severity.upper(), 20)
+            threshold_key = cast(
+                LogSeverity | Literal["INPUT"],
+                str(min_severity or "INFO").upper(),
+            )
+            threshold_rank = SEVERITY_LEVELS.get(threshold_key, 20)
             if current_rank < threshold_rank:
                 return
 

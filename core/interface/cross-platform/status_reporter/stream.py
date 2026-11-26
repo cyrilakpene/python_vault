@@ -1,14 +1,14 @@
 import sys
 from typing import TextIO
 
-from .constants import STATUS_MAP  # type: ignore[import-not-found]
+from .constants import STATUS_MAP, StatusState  # type: ignore[import-not-found]
 
 
 # SYMBOL RESOLUTION & STATUS MAPPING ENGINE
 # This utility normalizes execution states and maps them to corresponding visual display symbols
 # and persistent log representations using predefined status lookup tables.
 # [>] EXECUTING SYMBOL RESOLUTION
-def resolve_symbols(state: str | None) -> tuple[str, str, str]:
+def resolve_symbols(state: StatusState | str | None) -> tuple[str, str, str]:
     """
     Resolves symbolic mappings, display strings, and log representations.
 
@@ -32,14 +32,18 @@ def resolve_symbols(state: str | None) -> tuple[str, str, str]:
     # DISPLAY SYMBOL RESOLUTION
     # Maps the normalized state to an appropriate visual display symbol, translating 'log_info'
     # keys to standard info glyphs while falling back to a default empty bracket if unrecognized.
-    display_key = "info" if normalized_state == "log_info" else normalized_state
-    display_symbol: str = STATUS_MAP.get(display_key, "[ ]")
+    display_key: StatusState | str = (
+        "info" if normalized_state == "log_info" else normalized_state
+    )
+    display_symbol: str = str(STATUS_MAP.get(display_key, "[ ]"))  # type: ignore[arg-type]
 
     # LOG SYMBOL RESOLUTION
     # Resolves the dedicated log symbol counterpart, mapping info keys to log-specific representations
     # and falling back to the display symbol if no unique log mapping exists.
-    log_key = "log_info" if normalized_state == "info" else normalized_state
-    log_symbol: str = STATUS_MAP.get(log_key, display_symbol)
+    log_key: StatusState | str = (
+        "log_info" if normalized_state == "info" else normalized_state
+    )
+    log_symbol: str = str(STATUS_MAP.get(log_key, display_symbol))  # type: ignore[arg-type]
 
     # SYMBOL MANIFEST RETURN
     # Returns the normalized state alongside its mapped display and log symbols.
@@ -53,11 +57,11 @@ def resolve_symbols(state: str | None) -> tuple[str, str, str]:
 def render_output(
     message: str | None,
     display_symbol: str,
-    normalized_state: str,
+    normalized_state: StatusState | str,
     stream: TextIO | None,
     is_verbose: bool,
     silent: bool,
-    suppressed: bool,
+    suppressed: bool = False,
 ) -> None:
     """
     Handles verbosity, silence gates, smart stream routing (stdout vs stderr), and terminal rendering.
@@ -90,7 +94,7 @@ def render_output(
     # Dynamically routes warning and failure states to stderr while sending standard output to stdout,
     # respecting any explicit stream overrides.
     if stream is None:
-        stream = sys.stderr if normalized_state in ["warn", "fail"] else sys.stdout
+        stream = sys.stderr if normalized_state in ("warn", "fail") else sys.stdout
 
     # FORMATTED OUTPUT RESOLUTION
     # Omits leading space if no display symbol is provided (e.g., raw unstructured log lines).

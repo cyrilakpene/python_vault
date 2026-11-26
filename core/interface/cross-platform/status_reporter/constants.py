@@ -42,7 +42,7 @@ LogFormat: TypeAlias = Literal[
 # encapsulation. This ensures the 'Business Logic' of the reporter
 # remains self-contained and prevents unintended side-effects in
 # the broader application state.
-STATUS_MAP: dict[str, str] = {
+STATUS_MAP: dict[StatusState, str] = {
     "task": "[>]",
     "info": "[~]",
     "log_info": " [~]",
@@ -59,7 +59,7 @@ STATUS_MAP: dict[str, str] = {
 # SEVERITY RANKING MAPPING: NUMERIC THRESHOLD WEIGHTS
 # Maps standard enterprise log severity names to hierarchical numeric weights,
 # enabling fine-grained filtering and threshold evaluations via min_severity gates.
-SEVERITY_LEVELS: dict[str, int] = {
+SEVERITY_LEVELS: dict[LogSeverity | Literal["INPUT"], int] = {
     "DEBUG": 10,
     "INFO": 20,
     "NOTICE": 25,
@@ -67,11 +67,12 @@ SEVERITY_LEVELS: dict[str, int] = {
     "WARNING": 30,
     "ERROR": 40,
     "CRITICAL": 50,
+    "INPUT": 22,
 }
 
 # STATUS SYMBOL TO SEVERITY MAPPING
 # Maps status indicator symbols to standardized enterprise severity levels.
-SEVERITY_MAP: dict[str, str] = {
+SEVERITY_MAP: dict[str, LogSeverity | Literal["INPUT"]] = {
     ">": "NOTICE",
     "~": "INFO",
     "!": "WARNING",
@@ -79,4 +80,7 @@ SEVERITY_MAP: dict[str, str] = {
     "x": "ERROR",
     "*": "DEBUG",
     "?": "INPUT",
+    "d": "DEBUG",
+    "#": "INFO",
+    "-": "INFO",
 }

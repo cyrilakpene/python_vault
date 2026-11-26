@@ -225,8 +225,8 @@ def copy_and_transform_folder(
     return dest_path
 
 
-"""source = Path.home() / "Documents/debian_package/mkv-encode-1.0.0"
-destination = Path.home() / "Documents/github/project/mkv-encode-1.0.0"
+"""source = Path.home() / "Documents/debian_package/mkv-encode-1.1.0"
+destination = Path.home() / "Documents/github/project/mkv-encode-1.1.0"
 
 copy_and_transform_folder(
     source=source,
@@ -235,7 +235,7 @@ copy_and_transform_folder(
 )"""
 
 
-source = (
+"""source = (
     Path.home()
     / "/home/cyril/Documents/github/project/mkv-encode-1.0.0/usr/lib/mkv-encode/security/runtime_pkg"
 )
@@ -260,11 +260,11 @@ copy_and_transform_folder(
     remove_targets=["__pycache__"],
     keep_files=["README.md"],
 )
+"""
 
-
-"""source = (
+source = (
     Path.home()
-    / "/home/cyril/Documents/debian_package/mkv-encode-1.0.0/usr/lib/mkv-encode/interface/status_reporter"
+    / "/home/cyril/Documents/debian_package/mkv-encode-1.1.0/usr/lib/mkv-encode/interface/status_reporter"
 )
 destination = (
     Path.home()
@@ -277,4 +277,4 @@ copy_and_transform_folder(
     transform_extensions=[".py"],
     remove_targets=["__pycache__"],
     keep_files=["README.md"],
-)"""
+)
