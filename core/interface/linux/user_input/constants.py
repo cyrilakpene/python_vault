@@ -17,7 +17,7 @@ from .primitive import (
 from .security import parse_password  # type: ignore[import-not-found]
 from .ui import select_option  # type: ignore[import-not-found]
 
-from status_reporter import report_status, LogContext  # type: ignore[import-not-found]
+from interface.status_reporter import report_status, StatusState, LogContext  # type: ignore[import-not-found]
 from runtime_pkg import context, log_path  # type: ignore[import-not-found]
 
 # CONFIGURATION SUBSYSTEM: TYPE PARSING MAPPING REGISTRY
@@ -49,8 +49,8 @@ INPUT_MAP: dict[str, Callable[[dict[str, Any], str], str]] = {
     # Prompts the user for standard string input using standard input streams and strips whitespace.
     "default": lambda _field, prompt: input(f"[?] {prompt}: ").strip(),
     # PASSWORD INPUT STRATEGY
-    # Prompts the user for masked password input using the getpass utility and strips whitespace.
-    "password": lambda _field, prompt: getpass.getpass(f"[?] {prompt}: ").strip(),
+    # Prompts the user for masked password input using the getpass utility while preserving raw input for policy checks.
+    "password": lambda _field, prompt: getpass.getpass(f"[?] {prompt}: "),
     # SELECT INPUT STRATEGY
     # Prompts the user to select an option from a predefined list or menu based on field specifications.
     "select": lambda field, prompt: select_option(prompt, field),

@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from .constants import report_status, LogContext, context, log_path  # type: ignore[import-not-found]
 
@@ -13,6 +13,8 @@ def initialize_weaver(
     schema: object,
     supported_type_keys: set[str],
     supported_input_keys: set[str],
+    log_path: str | None = None,
+    context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Validates the structural integrity of an inbound schema and registers type mapping handlers.
@@ -21,6 +23,8 @@ def initialize_weaver(
         schema: Raw inbound configuration object expected to be a list of field dictionaries.
         supported_type_keys: Registered type keys allowed for data casting operations.
         supported_input_keys: Registered input handler strategies available for data ingestion.
+        log_path: Optional destination path for structured status logging.
+        context: Optional runtime context dictionary supplying metadata such as actor/user.
 
     Returns:
         dict[str, Any]: An initialization manifest dictionary if structural checks pass,
@@ -29,6 +33,8 @@ def initialize_weaver(
     Raises:
         ValueError: If an unregistered cast type or input handler signature is encountered in the field matrix.
     """
+    ctx_data: dict[str, Any] = context or {}
+
     # TYPE VALIDATION: SCHEMA INTEGRITY CHECK
     # The synthesis engine requires a structured list of mapping definitions
     # to operate. If the provided 'schema' does not meet this foundational
@@ -37,12 +43,11 @@ def initialize_weaver(
         report_status(
             state="fail",
             message="Schema Integrity Critical: Expected inbound schema configuration to be a list of dictionaries.",
+            log_path=log_path,
             context=LogContext(
                 component="interface.user_input",
-                log_path=log_path,
-                silent=False,
                 trace_id="user_input",
-                actor=context.get("user"),
+                actor=ctx_data.get("user"),
                 payload={
                     "schema_type": type(schema).__name__,
                     "expected_type": "list[dict]",
@@ -55,19 +60,26 @@ def initialize_weaver(
         # crashes that would occur if the caller expects a traversable result.
         return {}
 
-    safe_schema: list[Any] = schema  # type: ignore
+    safe_schema: list[Any] = cast(list[Any], schema)
 
     # FIELD ITERATION & TYPE DISPATCH MATRIX AUDIT
     # Iterates over each field entry in the schema vector to ensure dictionary typing
     # and confirm that required casting operations match registered strategy handlers.
     for index, field in enumerate(safe_schema):
+        if not isinstance(field, dict):
+            raise ValueError(
+                f"Schema Configuration Error at index {index}: "
+                f"Expected field entry to be a dict, got {type(field).__name__}."
+            )
+
         # STRUCTURAL ISOLATION: Map current iteration to strict dictionary layout
         # Ensure the checker knows each item in the list is a dictionary map,
         # preventing attribute resolution failures during deep property lookup.
-        current_field: dict[str, Any] = field
+        current_field: dict[str, Any] = cast(dict[str, Any], field)
 
         # COMPLIANCE MATRIX CHECK: Verify data-type casting registration
-        cast_type: str = current_field.get("cast", "str")
+        raw_cast: Any = current_field.get("cast", "str")
+        cast_type: str = raw_cast if isinstance(raw_cast, str) else str(raw_cast)
         if cast_type not in supported_type_keys:
             # FAIL-FAST SYSTEM TERMINATION
             # Hard failure triggered at the system boundary. We abort execution
@@ -80,7 +92,8 @@ def initialize_weaver(
             )
 
         # INGESTION MATRIX CHECK: Verify input handler registration
-        input_type: str = current_field.get("input", "default")
+        raw_input: Any = current_field.get("input", "default")
+        input_type: str = raw_input if isinstance(raw_input, str) else str(raw_input)
         if input_type not in supported_input_keys:
             # FAIL-FAST INPUT HANDLER TERMINATION
             # If an unregistered input strategy is requested (e.g. typos in secret prompts),
@@ -102,9 +115,9 @@ def initialize_weaver(
 # it enables dynamic argument injection while maintaining a simple single-argument execution interface.
 def resolve_caster(
     cast_type: str,
-    current_field: dict[str, Any],
-    type_map: dict[str, Callable[..., Any]],
-) -> Callable[[str], Any]:
+    current_field: dict[str, Any] | None,
+    type_map: dict[str, Callable[..., Any]] | None,
+) -> Callable[[Any], Any]:
     """
     DYNAMIC CAST FACTORY: CONTEXT-AWARE CONSTRUCTOR RESOLUTION
 
@@ -118,9 +131,13 @@ def resolve_caster(
         type_map: Mapping dictionary associating type keys to their corresponding conversion functions.
 
     Returns:
-        Callable[[str], Any]: A single-parameter conversion closure pre-bound with schema parameters.
+        Callable[[Any], Any]: A single-parameter conversion closure pre-bound with schema parameters.
     """
-    func = type_map.get(cast_type, str)
+    field_meta: dict[str, Any] = current_field or {}
+    registry: dict[str, Callable[..., Any]] = type_map or {}
+    lookup_key: str = cast_type
+    func = registry.get(lookup_key, str)
+
     try:
         # RUNTIME SIGNATURE INSPECTION
         # We reflect on the target validator function to extract its formal parameter names.
@@ -131,17 +148,23 @@ def resolve_caster(
         # CONTEXTUAL PARAMETER EXTRACTION
         # We scan the schema's field definition metadata for keys matching any of the function's
         # optional secondary arguments. Matches are extracted and isolated into an injection map.
-        extra_args = {}
+        extra_args: dict[str, Any] = {}
         for param_name in params[1:]:
+            param = sig.parameters[param_name]
+            if param.kind == inspect.Parameter.POSITIONAL_ONLY:
+                continue
             if param_name in ("field", "current_field"):
-                extra_args[param_name] = current_field
-            elif param_name in current_field:
-                extra_args[param_name] = current_field[param_name]
+                extra_args[param_name] = field_meta
+            elif param_name in field_meta:
+                extra_args[param_name] = field_meta[param_name]
 
         # CLOSURE BINDING & GENERATION
         # We return a lazy, self-contained closure wrapping the casting function.
         # When executed, it automatically injects the extracted configuration parameters.
-        return lambda v: func(v, **extra_args)
+        def _bound_caster(v: Any) -> Any:
+            return func(v, **extra_args)
+
+        return _bound_caster
     except (ValueError, TypeError):
         # C-EXTENSION & BUILT-IN FALLBACK SAFEGUARD
         # Certain low-level C-extensions or raw built-in types do not support Python's

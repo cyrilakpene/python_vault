@@ -9,6 +9,7 @@ from .constants import (
     SUPPORTED_TYPE_KEYS,  # type: ignore[import-not-found]
     SUPPORTED_INPUT_KEYS,  # type: ignore[import-not-found]
     report_status,  # type: ignore[import-not-found]
+    StatusState,  # type: ignore[import-not-found]
     LogContext,  # type: ignore[import-not-found]
     context,  # type: ignore[import-not-found]
     log_path,  # type: ignore[import-not-found]
@@ -33,15 +34,23 @@ def _fetch_raw_input(
     Returns:
         str: The raw user input string or the injected default value.
     """
+    field_dict: dict[str, Any] = field
+    actor = context.get("user")
+
     try:
         # RAW TERMINAL INPUT ACQUISITION
         # Invokes the input handler to retrieve raw string input from the user or terminal.
-        user_val: str = input_handler(field, field_label)
+        raw_val: Any = input_handler(field_dict, field_label)
+        user_val: str = (
+            raw_val
+            if isinstance(raw_val, str)
+            else ("" if raw_val is None else str(raw_val))
+        )
 
         # EMPTY INPUT DEFAULT INJECTION
         # Checks if input is empty and a non-None default value is defined in the schema, applying it silently.
-        if not user_val and "default" in field:
-            default_val = field.get("default")
+        if not user_val and "default" in field_dict:
+            default_val = field_dict.get("default")
             if default_val is not None:
                 user_val = str(default_val)
                 report_status(
@@ -52,31 +61,32 @@ def _fetch_raw_input(
                         log_path=log_path,
                         silent=True,
                         trace_id="user_input",
-                        actor=context.get("user"),
+                        actor=actor,
                         payload={
-                            "field_key": field.get("key"),
+                            "field_key": field_dict.get("key"),
                             "default_applied": user_val,
                         },
                     ),
                 )
         return user_val
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         # KEYBOARD INTERCEPTION & CANCELLATION HANDLING
         # Handles user interrupt signals by printing a newline, logging a cancellation warning,
         # and raising UserCancelError.
         print("\n")
+        cancel_err = UserCancelError()
         report_status(
             state="warn",
-            message=str(UserCancelError()),
+            message=str(cancel_err),
             context=LogContext(
                 component="interface.user_input",
                 log_path=log_path,
                 silent=False,
                 trace_id="user_input",
-                actor=context.get("user"),
-                exception=str(UserCancelError()),
-                payload={"field_key": field.get("key")},
+                actor=actor,
+                exception=str(cancel_err),
+                payload={"field_key": field_dict.get("key")},
             ),
         )
         raise UserCancelError from None
@@ -104,6 +114,10 @@ def _process_field_casting(
     Returns:
         Any: The successfully casted and boundary-enforced value, or the original user value.
     """
+    field_dict: dict[str, Any] = field
+    state_dict: dict[str, Any] = current_field
+    actor = context.get("user")
+
     # CASTING ATTEMPT NOTIFICATION
     # Reports a silent info status indicating the start of a type conversion attempt.
     if cast_type is not None:
@@ -115,22 +129,22 @@ def _process_field_casting(
                 log_path=log_path,
                 silent=True,
                 trace_id="user_input",
-                actor=context.get("user"),
-                payload={"field_key": field.get("key"), "cast_type": cast_type},
+                actor=actor,
+                payload={"field_key": field_dict.get("key"), "cast_type": cast_type},
             ),
         )
 
     # TYPE MAP LOOKUP & CASTER RESOLUTION
     # Resolves and executes the appropriate caster function if the cast type exists within the type map,
     # then enforces structural and value boundaries.
-    if cast_type in TYPE_MAP:
+    if isinstance(cast_type, str) and cast_type in TYPE_MAP:
         caster = resolve_caster(
             cast_type=cast_type,
-            current_field=current_field,
+            current_field=state_dict,
             type_map=TYPE_MAP,
         )
         casted_val = caster(user_val)
-        enforce_boundaries(v=casted_val, field=field)
+        enforce_boundaries(v=casted_val, field=field_dict)
         return casted_val
 
     # FALLBACK RAW VALUE RETURN
@@ -139,8 +153,8 @@ def _process_field_casting(
 
 
 # INGRESS PROCESSING SUBSYSTEM: FIELD FAILURE & EXCEPTION HANDLER
-# This utility manages strict-mode exceptions, incrementing retry counters, handling critical field rejections,
-# and assigning safe default or null fallbacks for non-critical failures.
+# Manages strict-mode rejections, retry counters, and non-critical field fallbacks
+# when input casting or boundary validation raises an exception.
 # [>] EXECUTING FIELD FAILURE HANDLER
 def _handle_field_failure(
     results: dict[str, Any],
@@ -151,6 +165,8 @@ def _handle_field_failure(
     error: Exception,
     attempt_counter: int,
     is_field_critical: bool,
+    fallback_state: StatusState | None = None,
+    fallback_message: str | None = None,
 ) -> tuple[bool, int]:
     """
     Manages strict-mode exceptions, retry counters, and non-critical fallbacks.
@@ -164,31 +180,38 @@ def _handle_field_failure(
         error (Exception): The exception raised during casting.
         attempt_counter (int): The current retry attempt counter.
         is_field_critical (bool): Flag indicating whether the field is critical.
+        fallback_state (StatusState | None): Optional status state override used when fallback_message is provided.
+        fallback_message (str | None): Optional custom fallback log message for non-critical failures.
 
     Returns:
-        tuple[bool, int]: A tuple containing a boolean flag (indicating whether to continue/retry or reject)
-        and the updated attempt counter.
+        tuple[bool, int]: A tuple containing `(should_retry, updated_attempt_counter)`, where
+        `should_retry` is `True` to prompt again and `False` to stop retrying the field.
     """
-    # MAX RETRIES EXCEPTION CHECK
-    # Handles maximum retry exhaustion by logging failure and marking the status.
+    out_results: dict[str, Any] = results
+    field_dict: dict[str, Any] = field
+    actor = context.get("user")
+    err_str = str(error)
+
+    # MAX RETRIES GUARD
+    # Records failure status and stops retrying once retry limits are exhausted.
     if isinstance(error, MaxRetriesExceededError):
         report_status(
             state="fail",
-            message=str(error),
+            message=err_str,
             context=LogContext(
                 component="interface.user_input",
                 log_path=log_path,
                 trace_id="user_input",
-                actor=context.get("user"),
-                exception=str(error),
+                actor=actor,
+                exception=err_str,
                 payload={"field_key": field_key, "attempts": attempt_counter},
             ),
         )
-        results["__status__"] = "MAX_RETRIES_EXCEEDED"
+        out_results["__status__"] = "MAX_RETRIES_EXCEEDED"
         return False, attempt_counter
 
-    # RETRY INCREMENT & CASTING EXCEPTION LOGGING
-    # Increments the attempt counter and reports the casting exception event silently.
+    # RETRY COUNTER & SILENT EXCEPTION LOG
+    # Increments the attempt count and records the error silently for diagnostics.
     attempt_counter += 1
     report_status(
         state="info",
@@ -198,18 +221,18 @@ def _handle_field_failure(
             log_path=log_path,
             silent=True,
             trace_id="user_input",
-            actor=context.get("user"),
-            exception=str(error),
+            actor=actor,
+            exception=err_str,
             payload={"field_key": field_key, "attempt": attempt_counter},
         ),
     )
 
-    # CRITICAL FIELD & PASSWORD REJECTION HANDLING
-    # Rejects critical fields or passwords when casting fails, reporting a detailed warning.
+    # STRICT REJECTION PATH
+    # Critical fields and passwords must be re-entered rather than falling back.
     if is_field_critical or cast_type == "password":
         error_msg = (
-            str(error)
-            if str(error)
+            err_str
+            if err_str
             else f"{user_val!r} cannot be cast to {cast_type!r}. REJECTING."
         )
         report_status(
@@ -219,33 +242,41 @@ def _handle_field_failure(
                 component="interface.user_input",
                 log_path=log_path,
                 trace_id="user_input",
-                actor=context.get("user"),
-                exception=str(error),
+                actor=actor,
+                exception=err_str,
                 payload={"field_key": field_key, "critical": is_field_critical},
             ),
         )
         return True, attempt_counter
     else:
-        # NON-CRITICAL FALLBACK ASSIGNMENT & MESSAGING
-        # Assigns explicit defaults or appropriate empty/null fallback values for non-critical fields,
-        # tailoring the logging message based on whether the default is an intentional None or a cast failure.
-        if "default" in field:
-            results[field_key] = field.get("default")
-            if results[field_key] is None:
+        # NON-CRITICAL FALLBACK VALUE ASSIGNMENT
+        # Populate `results[field_key]` from the schema default first, or fall back to an
+        # empty list for list types and `None` otherwise so a custom message still has a value.
+        if "default" in field_dict:
+            out_results[field_key] = field_dict.get("default")
+        else:
+            out_results[field_key] = (
+                [] if isinstance(cast_type, str) and "list" in cast_type else None
+            )
+
+        # FALLBACK STATUS & MESSAGE SELECTION
+        # Use any custom message/state override first, then tailor default/type-mismatch messages.
+        if fallback_message is not None:
+            state = fallback_state if fallback_state is not None else "info"
+            repair_msg = fallback_message
+        elif "default" in field_dict:
+            if out_results[field_key] is None:
                 state = "info"
-                repair_msg = f"Optional field omitted. Defaulting to: None."
+                repair_msg = "Optional field omitted. Defaulting to: None."
             else:
                 state = "warn"
-                repair_msg = (
-                    f"Cast failure. Utilizing explicit default: {results[field_key]!r}."
-                )
+                repair_msg = f"Cast failure. Utilizing explicit default: {out_results[field_key]!r}."
         else:
-            results[field_key] = [] if cast_type and "list" in cast_type else None
             state = "warn"
-            repair_msg = f"Type mismatch: No default defined. Fallback to: {results[field_key]!r}."
+            repair_msg = f"Type mismatch: No default defined. Fallback to: {out_results[field_key]!r}."
 
-        # REPAIR WARNING REPORTING & RETURN
-        # Reports the fallback repair action and returns success indicators with the updated counter.
+        # FALLBACK TELEMETRY & LOOP EXIT
+        # Report the fallback action and return `False` to move on to the next field.
         report_status(
             state=state,
             message=repair_msg,
@@ -253,8 +284,11 @@ def _handle_field_failure(
                 component="interface.user_input",
                 log_path=log_path,
                 trace_id="user_input",
-                actor=context.get("user"),
-                payload={"field_key": field_key, "fallback_value": results[field_key]},
+                actor=actor,
+                payload={
+                    "field_key": field_key,
+                    "fallback_value": out_results.get(field_key),
+                },
             ),
         )
         return False, attempt_counter
@@ -279,6 +313,9 @@ def user_input(
     Returns:
         dict[str, Any]: A dictionary of collected and casted user input values, including status markers if failed.
     """
+    actor = context.get("user")
+    total_fields = len(schema)
+
     # INBOUND SCHEMA VALIDATION REPORT
     # Reports the start of inbound schema architecture validation silently.
     report_status(
@@ -289,9 +326,9 @@ def user_input(
             log_path=log_path,
             silent=True,
             trace_id="user_input",
-            actor=context.get("user"),
+            actor=actor,
             payload={
-                "total_fields": len(schema),
+                "total_fields": total_fields,
             },
         ),
     )
@@ -317,7 +354,7 @@ def user_input(
             log_path=log_path,
             silent=True,
             trace_id="user_input",
-            actor=context.get("user"),
+            actor=actor,
             payload={
                 "cast_type_available": list(TYPE_MAP.keys()),
                 "input_type_available": list(INPUT_MAP.keys()),
@@ -334,7 +371,7 @@ def user_input(
                 log_path=log_path,
                 silent=False,
                 trace_id="user_input",
-                actor=context.get("user"),
+                actor=actor,
             ),
         )
 
@@ -348,7 +385,7 @@ def user_input(
             log_path=log_path,
             silent=True,
             trace_id="user_input",
-            actor=context.get("user"),
+            actor=actor,
         ),
     )
 
@@ -358,12 +395,17 @@ def user_input(
         current_field = dict(field)
         attempt_counter: int = 1
 
-        field_key: str = field.get("key", "unknown")
-        field_label: str = field.get("label", field_key)
+        raw_key = field.get("key", "unknown")
+        field_key: str = raw_key if isinstance(raw_key, str) else str(raw_key)
+        raw_label = field.get("label", field_key)
+        field_label: str = raw_label if isinstance(raw_label, str) else str(raw_label)
         cast_type: str | None = field.get("cast", "str")
-        is_field_critical = field.get("critical", critical)
-        input_handler = INPUT_MAP.get(
-            field.get("input", "default"), INPUT_MAP["default"]
+        is_field_critical = bool(field.get("critical", critical))
+        raw_input_key = field.get("input", "default")
+        input_handler = (
+            INPUT_MAP.get(raw_input_key, INPUT_MAP["default"])
+            if isinstance(raw_input_key, str)
+            else INPUT_MAP["default"]
         )
 
         # FIELD COLLECTION TELEMETRY REPORT
@@ -376,7 +418,7 @@ def user_input(
                 log_path=log_path,
                 silent=True,
                 trace_id="user_input",
-                actor=context.get("user"),
+                actor=actor,
                 payload={
                     "field_key": field_key,
                     "critical": is_field_critical,
@@ -404,7 +446,7 @@ def user_input(
                         log_path=log_path,
                         silent=False,
                         trace_id="user_input",
-                        actor=context.get("user"),
+                        actor=actor,
                         payload={
                             "field_key": field_key,
                             "reason": "null_in_critical_mode",
@@ -428,7 +470,8 @@ def user_input(
                     and casted_val.lower() == "other"
                 ):
                     custom_prompt = f"Enter custom {field_key}"
-                    custom_val = input(f"[?] {custom_prompt}: ").strip()
+                    raw_custom = input(f"[?] {custom_prompt}: ")
+                    custom_val = raw_custom.strip()
                     if custom_val:
                         # Create a modified copy of the field definition without 'choices'
                         # to allow freeform custom input text to bypass set-membership restrictions.
@@ -440,7 +483,9 @@ def user_input(
                     elif "default" in field and field.get("default") is not None:
                         casted_val = field.get("default")
                     else:
-                        raise ValueError(f"Custom input for {field_key!r} cannot be empty when selecting 'Other'.")
+                        raise ValueError(
+                            f"Custom input for {field_key!r} cannot be empty when selecting 'Other'."
+                        )
 
                 results[field_key] = casted_val
                 report_status(
@@ -451,12 +496,13 @@ def user_input(
                         log_path=log_path,
                         silent=True,
                         trace_id="user_input",
-                        actor=context.get("user"),
+                        actor=actor,
                         payload={"field_key": field_key, "registered": True},
                     ),
                 )
                 break
             except (MaxRetriesExceededError, ValueError, TypeError) as e:
+                err_msg = str(e) if str(e) else "Maximum attempt limit exceeded."
                 if (
                     isinstance(e, MaxRetriesExceededError)
                     or results.get("__status__") == "MAX_RETRIES_EXCEEDED"
@@ -464,13 +510,13 @@ def user_input(
                     results["__status__"] = "MAX_RETRIES_EXCEEDED"
                     report_status(
                         state="fail",
-                        message=str(e),
+                        message=err_msg,
                         context=LogContext(
                             component="interface.user_input",
                             log_path=log_path,
                             trace_id="user_input",
-                            actor=context.get("user"),
-                            exception=str(e),
+                            actor=actor,
+                            exception=err_msg,
                             payload={"field_key": field_key},
                         ),
                     )
@@ -478,6 +524,8 @@ def user_input(
 
                 # FIELD FAILURE HANDLING & RETRY DELEGATION
                 # Delegates field failure handling to evaluate retry attempts or break the loop.
+                fallback_state = field.get("fallback_state")
+                fallback_message = field.get("fallback_message")
                 should_continue, attempt_counter = _handle_field_failure(
                     results,
                     field,
@@ -487,6 +535,8 @@ def user_input(
                     e,
                     attempt_counter,
                     is_field_critical,
+                    fallback_state,
+                    fallback_message,
                 )
                 if should_continue:
                     continue

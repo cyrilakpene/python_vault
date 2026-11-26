@@ -18,6 +18,9 @@ def _read_terminal_key() -> str:
     Raises:
         KeyboardInterrupt: If the user passes the explicit Ctrl+C interrupt sequence (`\x03`).
     """
+    if not sys.stdin.isatty():
+        return "UNKNOWN"
+
     # FILE DESCRIPTOR & TERMINAL STATE ISOLATION
     # Acquires standard input file descriptor and saves active terminal attributes for guaranteed restoration.
     fd = sys.stdin.fileno()
@@ -36,6 +39,8 @@ def _read_terminal_key() -> str:
         # Switches terminal into unbuffered raw mode to intercept single keypresses immediately without line buffering.
         tty.setraw(fd)
         ch = sys.stdin.read(1)
+        if not ch:
+            return "UNKNOWN"
 
         # INTERRUPT SIGNAL DETECTION
         # Explicitly traps Ctrl+C (`\x03`) byte sequence and raises a native KeyboardInterrupt.
@@ -48,6 +53,8 @@ def _read_terminal_key() -> str:
             ch2 = sys.stdin.read(1)
             if ch2 == "[":
                 ch3 = sys.stdin.read(1)
+                while ch3 and (ch3.isdigit() or ch3 == ";"):
+                    ch3 = sys.stdin.read(1)
                 return arrow_map.get(ch3, "UNKNOWN")
             return "UNKNOWN"
 

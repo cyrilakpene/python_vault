@@ -2,7 +2,7 @@ import os
 import re
 import hmac
 import hashlib
-from typing import Callable
+from typing import Any, Callable
 
 from .exceptions import MaxRetriesExceededError  # type: ignore[import-not-found]
 
@@ -26,6 +26,9 @@ def hash_password(password: str) -> str:
     Returns:
         str: A colon-delimited string formatted as 'hex_salt:hex_hash' suitable for database persistence.
     """
+    if not password:
+        raise ValueError("Password must be a non-empty string.")
+
     # DYNAMIC SALT GENERATION
     # Cryptographically generates 16 bytes (128 bits) of unique random salt using system entropy
     # to defend against precomputed rainbow table attacks and ensure uniform hash uniqueness.
@@ -63,7 +66,9 @@ def verify_password(stored_hash_string: str, candidate_password: str) -> bool:
         # CREDENTIAL DECONSTRUCTION & SALT RECOVERY
         # Unpacks the stored string into constituent hex salt and original hash strings,
         # converting the hex salt back into raw bytes to seed candidate key derivation.
-        salt_hex, original_hash = stored_hash_string.split(":")
+        salt_hex, original_hash = stored_hash_string.split(":", 1)
+        if not salt_hex or not original_hash:
+            return False
         salt = bytes.fromhex(salt_hex)
 
         # CANDIDATE HASH RE-DERIVATION (PBKDF2-HMAC-SHA256)
@@ -90,7 +95,7 @@ def verify_password(stored_hash_string: str, candidate_password: str) -> bool:
 # complexity, length thresholds, execution attempt ceilings, and optional verifier callables, it prevents
 # brute-force attempts and guarantees structural and cryptographic compliance.
 def parse_password(
-    v: str,
+    v: Any,
     min_len: int = 1,
     is_new: bool = False,
     attempt: int = 0,
@@ -123,6 +128,9 @@ def parse_password(
         MaxRetriesExceededError: If verification attempts reach or exceed the max_retries limit.
         ValueError: If password length, complexity policies, or external verification assertions fail.
     """
+    if not isinstance(v, str):
+        raise ValueError("Password must be a string.")
+
     # BRUTE-FORCE PROTECTION: RETRY BOUNDARY FIREWALL
     # Evaluates the current attempt count against the retry threshold during authentication.
     # Aborts processing immediately if the threshold is breached to prevent brute-force attacks.
@@ -145,7 +153,7 @@ def parse_password(
     # BASE LENGTH CHECK: THRESHOLD ASSERTION & RETRY CALCULATION
     # Verifies that the candidate password satisfies length bounds.
     # Dynamically calculates remaining attempts and pluralizes retry labels for error reporting.
-    rem = max_retries - attempt
+    rem = max(0, max_retries - attempt)
     retry_label = "retry" if rem == 1 else "retries"
     if len(pwd) < min_len:
         if not is_new:

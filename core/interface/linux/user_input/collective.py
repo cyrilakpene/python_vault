@@ -4,7 +4,7 @@ from typing import Any, cast
 # STRING LIST PARSING & DELIMITED TOKEN SANITIZATION ENGINE
 # Transforms comma-separated string payloads into a cleaned list of non-empty string tokens
 # by stripping surrounding whitespace and filtering out blank entries.
-def parse_list_str(v: str) -> list[str]:
+def parse_list_str(v: Any) -> list[str]:
     """
     Parses a comma-separated string into a list of cleaned string tokens.
 
@@ -14,10 +14,24 @@ def parse_list_str(v: str) -> list[str]:
     Returns:
         list[str]: A list of sanitized, non-empty string tokens extracted from the input.
     """
+    if v is None:
+        return []
+    if isinstance(v, (list, tuple)):
+        items: list[object] | tuple[object, ...] = cast(
+            list[object] | tuple[object, ...], v
+        )
+        return [str(item).strip() for item in items if str(item).strip()]
+
+    clean_v = str(v).strip()
+    if (clean_v.startswith("[") and clean_v.endswith("]")) or (
+        clean_v.startswith("(") and clean_v.endswith(")")
+    ):
+        clean_v = clean_v[1:-1].strip()
+
     # DELIMITED SPLITTING, WHITESPACE STRIPPING & EMPTY TOKEN FILTERING
     # Splits the input payload on commas, strips whitespace from each token,
     # and discards empty strings to yield a clean string collection.
-    return [s.strip() for s in v.split(",") if s.strip()]
+    return [s.strip() for s in clean_v.split(",") if s.strip()]
 
 
 # DATA EXTRACTION & INTEGER LIST PARSING ENGINE
@@ -25,7 +39,7 @@ def parse_list_str(v: str) -> list[str]:
 # By combining delimiter sanitization with a dual-path parser—supporting both positional template
 # overlays on pre-existing field defaults and dynamic array creation—it prevents index exceptions
 # and maintains data integrity across sparse, custom, or malformed input vectors.
-def parse_list_int(v: str, field: dict[str, Any] | None) -> list[int]:
+def parse_list_int(v: Any, field: dict[str, Any] | None = None) -> list[int]:
     """
     DATA NORMALIZATION: SAFE INTEGER EXTRACTION WITH COGNIZANT COUPLING
 
@@ -44,14 +58,6 @@ def parse_list_int(v: str, field: dict[str, Any] | None) -> list[int]:
     Returns:
         list[int]: A validated list of parsed integers reconciled against field default templates.
     """
-
-    # [>] SYNTAX DE-ESCALATION
-    # We strip common list and tuple delimiters (brackets and parentheses) to handle
-    # raw CSV strings ("1, 2, 3"), stringified lists ("[1, 2]"), and stringified tuples ("(0, 5)").
-    clean_v = (
-        v.replace("[", "").replace("]", "").replace("(", "").replace(")", "").strip()
-    )
-
     # POSITION OVERLAY FIREWALL: EXTRACT BASELINE SHAPE
     # We look up the active field's default state via scope closure enclosure.
     # If the inbound default is a list, we extract its values as our baseline matrix template.
@@ -61,6 +67,28 @@ def parse_list_int(v: str, field: dict[str, Any] | None) -> list[int]:
         [int(x) for x in cast(list[Any], default_val)]
         if isinstance(default_val, list)
         else []
+    )
+
+    if v is None:
+        return safe_default
+
+    if isinstance(v, (list, tuple)):
+        items: list[object] | tuple[object, ...] = cast(
+            list[object] | tuple[object, ...], v
+        )
+        raw_str = ",".join(str(item) for item in items)
+    else:
+        raw_str = str(v)
+
+    # [>] SYNTAX DE-ESCALATION
+    # We strip common list and tuple delimiters (brackets and parentheses) to handle
+    # raw CSV strings ("1, 2, 3"), stringified lists ("[1, 2]"), and stringified tuples ("(0, 5)").
+    clean_v = (
+        raw_str.replace("[", "")
+        .replace("]", "")
+        .replace("(", "")
+        .replace(")", "")
+        .strip()
     )
 
     # VACUUM EXIT: EMPTY INPUT FALLBACK
@@ -90,8 +118,10 @@ def parse_list_int(v: str, field: dict[str, Any] | None) -> list[int]:
             # WHITESPACE STRIPPING: Removes leading/trailing noise.
             # ASSIGNMENT EXPRESSION (Walrus): Stores the cleaned string token.
             # NUMERIC INTEGRITY: We use .isdigit() on the absolute value (lstrip("-"))
-            #    to support negative integers while filtering out alpha/symbol noise.
-            if (val := raw.strip()) and val.lstrip("-").isdigit():
+            #    to support negative integers while rejecting non-integer tokens.
+            if val := raw.strip():
+                if not val.lstrip("-").isdigit():
+                    raise ValueError(f"Invalid integer token: {val!r}.")
                 # SURGICAL INDEX COUPLING: OVERWRITING ACTIVE ELEMENT
                 # Explicit empty slots are skipped, natively retaining default coordinates.
                 reconciled_list[i] = int(val)
@@ -103,7 +133,9 @@ def parse_list_int(v: str, field: dict[str, Any] | None) -> list[int]:
     # we dynamically parse and append valid integer tokens to avoid index assignment bounds errors.
     parsed: list[int] = []
     for raw in fragments:
-        if (val := raw.strip()) and val.lstrip("-").isdigit():
+        if val := raw.strip():
+            if not val.lstrip("-").isdigit():
+                raise ValueError(f"Invalid integer token: {val!r}.")
             parsed.append(int(val))
 
     # PARSED VECTOR RETURN
@@ -115,7 +147,7 @@ def parse_list_int(v: str, field: dict[str, Any] | None) -> list[int]:
 # This transformation gateway wraps raw input parsing within immutable tuple guarantees.
 # By combining underlying string-to-list extraction, fallback scalar-to-range expansion,
 # and tuple coercion, it delivers static numeric bounds required by downstream slicing systems.
-def parse_tuple_int(v: str, field: dict[str, Any] | None) -> tuple[int, ...]:
+def parse_tuple_int(v: Any, field: dict[str, Any] | None = None) -> tuple[int, ...]:
     """
     TYPE CASTING GATEWAY: STRING-TO-INT TUPLE CONVERTER
 
@@ -133,7 +165,7 @@ def parse_tuple_int(v: str, field: dict[str, Any] | None) -> tuple[int, ...]:
     """
 
     # STRUCTURAL FREEZE & PIPELINE DELEGATION
-    # We delegate core string parsing, delimiter stripping, and integer validation to '_parse_list_int'.
+    # We delegate core string parsing, delimiter stripping, and integer validation to 'parse_list_int'.
     field = field or {}
     parsed = parse_list_int(v=v, field=field)
 
@@ -146,12 +178,12 @@ def parse_tuple_int(v: str, field: dict[str, Any] | None) -> tuple[int, ...]:
         # [>] TUPLE PASSTHROUGH
         # If the default is already a structured tuple (e.g., (0, 5)), return it directly.
         if isinstance(default_val, tuple):
-            return cast(tuple[int, ...], default_val)
+            return tuple(int(x) for x in cast(tuple[Any, ...], default_val))
 
         # [>] SCALAR-TO-RANGE EXPANSION
         # Converts scalar integer defaults (e.g. 5) into 2-tuple range bounds (0, 5)
         # to satisfy downstream slice expectations (e.g., pandas iloc positional ranges).
-        if isinstance(default_val, int):
+        if not isinstance(default_val, bool) and isinstance(default_val, int):
             return (0, default_val)
 
         return ()
@@ -173,7 +205,7 @@ def parse_tuple_int(v: str, field: dict[str, Any] | None) -> tuple[int, ...]:
 # By combining delimiter sanitization with a dual-path parser—supporting both positional template
 # overlays on pre-existing field defaults and dynamic array creation—it prevents index exceptions
 # and maintains data integrity across sparse, custom, or malformed input vectors.
-def parse_list_float(v: str, field: dict[str, Any] | None) -> list[float]:
+def parse_list_float(v: Any, field: dict[str, Any] | None = None) -> list[float]:
     """
     DATA NORMALIZATION: SAFE FLOAT EXTRACTION WITH COGNIZANT COUPLING
 
@@ -192,14 +224,6 @@ def parse_list_float(v: str, field: dict[str, Any] | None) -> list[float]:
     Returns:
         list[float]: A validated list of parsed floats reconciled against field default templates.
     """
-
-    # [>] SYNTAX DE-ESCALATION
-    # We strip common list and tuple delimiters (brackets and parentheses) to handle
-    # raw CSV strings ("1.5, 2.0"), stringified lists ("[1.0, 2.5]"), and stringified tuples "(0.0, 5.0)".
-    clean_v = (
-        v.replace("[", "").replace("]", "").replace("(", "").replace(")", "").strip()
-    )
-
     # POSITION OVERLAY FIREWALL: EXTRACT BASELINE SHAPE
     # We look up the active field's default state via scope closure enclosure.
     # If the inbound default is a list, we extract its values as our baseline matrix template.
@@ -209,6 +233,28 @@ def parse_list_float(v: str, field: dict[str, Any] | None) -> list[float]:
         [float(x) for x in cast(list[Any], default_val)]
         if isinstance(default_val, list)
         else []
+    )
+
+    if v is None:
+        return safe_default
+
+    if isinstance(v, (list, tuple)):
+        items: list[object] | tuple[object, ...] = cast(
+            list[object] | tuple[object, ...], v
+        )
+        raw_str = ",".join(str(item) for item in items)
+    else:
+        raw_str = str(v)
+
+    # [>] SYNTAX DE-ESCALATION
+    # We strip common list and tuple delimiters (brackets and parentheses) to handle
+    # raw CSV strings ("1.5, 2.0"), stringified lists ("[1.0, 2.5]"), and stringified tuples "(0.0, 5.0)".
+    clean_v = (
+        raw_str.replace("[", "")
+        .replace("]", "")
+        .replace("(", "")
+        .replace(")", "")
+        .strip()
     )
 
     # VACUUM EXIT: EMPTY INPUT FALLBACK
@@ -239,8 +285,8 @@ def parse_list_float(v: str, field: dict[str, Any] | None) -> list[float]:
             if val := raw.strip():
                 try:
                     reconciled_list[i] = float(val)
-                except ValueError:
-                    pass
+                except ValueError as exc:
+                    raise ValueError(f"Invalid float token: {val!r}.") from exc
 
         return reconciled_list
 
@@ -251,8 +297,8 @@ def parse_list_float(v: str, field: dict[str, Any] | None) -> list[float]:
         if val := raw.strip():
             try:
                 parsed.append(float(val))
-            except ValueError:
-                continue
+            except ValueError as exc:
+                raise ValueError(f"Invalid float token: {val!r}.") from exc
 
     # PARSED VECTOR RETURN
     # Yields dynamically populated float vector when no default matrix overlay is available.
@@ -263,7 +309,7 @@ def parse_list_float(v: str, field: dict[str, Any] | None) -> list[float]:
 # This transformation gateway wraps raw input parsing within immutable tuple guarantees for floating-point values.
 # By combining underlying string-to-list extraction, fallback scalar-to-range expansion,
 # and tuple coercion, it delivers static floating-point bounds required by downstream systems.
-def parse_tuple_float(v: str, field: dict[str, Any] | None) -> tuple[float, ...]:
+def parse_tuple_float(v: Any, field: dict[str, Any] | None = None) -> tuple[float, ...]:
     """
     TYPE CASTING GATEWAY: STRING-TO-FLOAT TUPLE CONVERTER
 
@@ -281,7 +327,7 @@ def parse_tuple_float(v: str, field: dict[str, Any] | None) -> tuple[float, ...]
     """
 
     # STRUCTURAL FREEZE & PIPELINE DELEGATION
-    # We delegate core string parsing, delimiter stripping, and float validation to '_parse_list_float'.
+    # We delegate core string parsing, delimiter stripping, and float validation to 'parse_list_float'.
     field = field or {}
     parsed = parse_list_float(v=v, field=field)
 
@@ -293,11 +339,11 @@ def parse_tuple_float(v: str, field: dict[str, Any] | None) -> tuple[float, ...]
         # [>] TUPLE PASSTHROUGH
         # If the default is already a structured tuple, return it directly.
         if isinstance(default_val, tuple):
-            return cast(tuple[float, ...], default_val)
+            return tuple(float(x) for x in cast(tuple[Any, ...], default_val))
 
         # [>] SCALAR-TO-RANGE EXPANSION
         # Converts scalar numeric defaults into 2-tuple range bounds (0.0, N).
-        if isinstance(default_val, (int, float)):
+        if not isinstance(default_val, bool) and isinstance(default_val, (int, float)):
             return (0.0, float(default_val))
 
         return ()
@@ -317,7 +363,7 @@ def parse_tuple_float(v: str, field: dict[str, Any] | None) -> tuple[float, ...]
 # This utility transforms raw string representations of array-like structures into
 # immutable, cleaned string tuples. By stripping structural containers and discarding
 # empty fragments, it ensures predictable token extraction across CLI and file inputs.
-def parse_tuple_str(v: str) -> tuple[str, ...]:
+def parse_tuple_str(v: Any) -> tuple[str, ...]:
     """
     SYNTAX SANITIZER: STRING-TO-TUPLE DESERIALIZER
 
@@ -332,12 +378,19 @@ def parse_tuple_str(v: str) -> tuple[str, ...]:
     Returns:
         tuple[str, ...]: An immutable tuple of stripped, non-empty string tokens.
     """
+    if v is None:
+        return ()
+    if isinstance(v, (list, tuple)):
+        items: list[object] | tuple[object, ...] = cast(
+            list[object] | tuple[object, ...], v
+        )
+        return tuple(str(item).strip() for item in items if str(item).strip())
 
     # CONTAINER BOUNDARY STRIPPER
     # Inbound strings often arrive wrapped in array, list, or tuple notation
     # from configuration files or CLI inputs. We aggressively strip these
     # enclosing boundary characters to isolate the raw, comma-separated tokens.
-    clean_v = v.replace("[", "").replace("]", "").replace("(", "").replace(")", "")
+    clean_v = str(v).replace("[", "").replace("]", "").replace("(", "").replace(")", "")
 
     # TOKENIZATION & VACUUM CLEANING
     # We split the sanitized string by commas, strip leading/trailing whitespace

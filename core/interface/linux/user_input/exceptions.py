@@ -5,9 +5,15 @@ class UserCancelError(BaseException):
     """Raised when user cancels operation."""
 
     def __init__(self, message: str = "User interrupted process (Ctrl+C)."):
+        self.message = message
+        formatted = (
+            message
+            if message.startswith("Operation Cancel: ")
+            else f"Operation Cancel: {message}"
+        )
         # DOMAIN EXCEPTION FORMATTING
         # Prefixes cancellation message with standard system tag before delegating to BaseException initializer.
-        super().__init__(f"Operation Cancel: {message}")
+        super().__init__(formatted)
 
 
 # RETRY BOUNDARY FAILURE EXCEPTION CLASS
@@ -17,6 +23,12 @@ class MaxRetriesExceededError(ValueError):
     """Raised when authentication attempts exceed the retry threshold."""
 
     def __init__(self, message: str = "Maximum attempt limit exceeded."):
+        self.message = message
+        formatted = (
+            message
+            if message.startswith("Authentication Failure: ")
+            else f"Authentication Failure: {message}"
+        )
         # DOMAIN EXCEPTION FORMATTING
         # Prefixes failure message with standard security tag before delegating to ValueError initializer.
-        super().__init__(f"Authentication Failure: {message}")
+        super().__init__(formatted)

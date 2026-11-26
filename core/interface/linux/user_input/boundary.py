@@ -64,7 +64,13 @@ def enforce_boundaries(v: Any, field: dict[str, Any]) -> None:
             c["name"] if isinstance(c, dict) and "name" in c else c for c in choices
         ]
 
-        if v not in normalized_choices:
+        # Prevent booleans from matching 0/1 in numeric or mixed choice sets
+        invalid_choice = isinstance(v, bool) and any(
+            not isinstance(c, bool) and isinstance(c, (int, float)) and c in (0, 1)
+            for c in normalized_choices
+        )
+
+        if invalid_choice or v not in normalized_choices:
             # [>] ERROR FORMATTING
             # We stringify the choices to provide the user with clear
             # terminal feedback on what the expected inputs were.
@@ -96,9 +102,14 @@ def enforce_boundaries(v: Any, field: dict[str, Any]) -> None:
 
     elif isinstance(v, bool):
         # BOOLEAN SUBCLASS CONFLATION GUARD
-        # In Python, bool is a subclass of int. We explicitly intercept booleans
-        # so they do not masquerade as integers or floats in numeric range checks.
-        raise ValueError(f"Value {v!r} is invalid. Expected numeric type, got boolean.")
+        # In Python, bool is a subclass of int. We only reject booleans when
+        # numeric min/max bounds are configured so they do not masquerade as
+        # integers or floats in numeric range checks, while allowing valid
+        # boolean values to pass through cleanly.
+        if min_val is not None or max_val is not None:
+            raise ValueError(
+                f"Value {v!r} is invalid. Expected numeric type, got boolean."
+            )
 
     elif isinstance(v, (int, float)):
         # NUMERIC VALUE VALIDATION: MAGNITUDE CONTROL

@@ -234,14 +234,13 @@ copy_and_transform_folder(
     remove_targets=["__pycache__", ".mypy_cache"],
 )"""
 
-
-"""source = (
+source = (
     Path.home()
-    / "/home/cyril/Documents/github/project/mkv-encode-1.0.0/usr/lib/mkv-encode/security/runtime_pkg"
+    / "/home/cyril/Documents//debian_package/mkv-encode-1.1.0/usr/lib/mkv-encode/interface/user_input"
 )
 destination = (
     Path.home()
-    / "/home/cyril/Documents/github/python_vault/core/security/linux/runtime_pkg"
+    / "/home/cyril/Documents/github/python_vault/core/interface/linux/user_input"
 )
 
 replacements = {
@@ -260,9 +259,8 @@ copy_and_transform_folder(
     remove_targets=["__pycache__"],
     keep_files=["README.md"],
 )
-"""
 
-source = (
+"""source = (
     Path.home()
     / "/home/cyril/Documents/debian_package/mkv-encode-1.1.0/usr/lib/mkv-encode/interface/status_reporter"
 )
@@ -277,4 +275,4 @@ copy_and_transform_folder(
     transform_extensions=[".py"],
     remove_targets=["__pycache__"],
     keep_files=["README.md"],
-)
+)"""
